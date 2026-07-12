@@ -1,0 +1,7 @@
+{
+  "string": [
+    { "name": "module_desc", "value": "Harmony Sass application entry" },
+    { "name": "EntryAbility_desc", "value": "Harmony Sass main ability" },
+    { "name": "EntryAbility_label", "value": "Harmony Sass" }
+  ]
+}
