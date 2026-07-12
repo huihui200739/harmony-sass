@@ -1,0 +1,12 @@
+# DevEco Studio / HarmonyOS generated files
+/.idea/
+/.hvigor/
+/oh_modules/
+/local.properties
+**/build/
+**/.preview/
+**/.test/
+*.hap
+
+# OS files
+.DS_Store
