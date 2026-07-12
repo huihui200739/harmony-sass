@@ -64,7 +64,7 @@ Outputs:
 On macOS, run:
 
 ```bash
-./scripts/verify.sh
+bash ./scripts/verify.sh
 ```
 
 The script installs HarmonyOS package dependencies, runs unit tests, and creates an unsigned HAP. The expected package path is:
