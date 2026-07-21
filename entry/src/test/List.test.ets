@@ -1,5 +1,5 @@
-import scssLiteTest from './ScssLite.test';
+import dartSassRuntimeTest from './DartSassRuntime.test';
 
 export default function testsuite(): void {
-  scssLiteTest();
+  dartSassRuntimeTest();
 }

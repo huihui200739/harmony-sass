@@ -1,8 +1,8 @@
 {
   "modelVersion": "6.1.1",
   "name": "harmony-sass",
-  "version": "0.1.0",
-  "description": "A native SCSS Lite compiler for HarmonyOS PC.",
+  "version": "0.2.0",
+  "description": "A Dart Sass editor and compiler adapted for HarmonyOS PC.",
   "dependencies": {},
   "devDependencies": {
     "@ohos/hypium": "1.0.25",

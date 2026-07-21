@@ -1,10 +1,9 @@
 {
   "name": "entry",
   "version": "1.0.0",
-  "description": "Please describe the basic information.",
+  "description": "Official Dart Sass compilation for HarmonyOS PC.",
   "main": "",
   "author": "",
   "license": "",
   "dependencies": {}
 }
-

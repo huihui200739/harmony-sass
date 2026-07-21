@@ -1,58 +1,39 @@
 # Harmony Sass
 
-**Harmony Sass** is an open-source, native ArkTS SCSS editor and compiler for **HarmonyOS PC**.
+**Harmony Sass** is a HarmonyOS PC SCSS editor that runs the official
+[Dart Sass](https://github.com/sass/dart-sass) implementation locally.
 
-> Status: `0.1.0 MVP` — buildable and test-covered SCSS Lite implementation.
+The visible ArkTS two-pane interface remains unchanged from the original MVP.
+Compilation is no longer handled by the former handwritten `ScssLite` parser.
+Instead, the official Dart Sass JavaScript distribution is bundled into the
+application and executed in an invisible ArkWeb runtime.
 
-## Why this project
+## Current implementation
 
-Sass is a practical first target for HarmonyOS PC adaptation: the core workflow transforms text into text and does not require a container runtime, a Windows compatibility layer, or a full desktop IDE port.
+- Native HarmonyOS ArkTS editor UI
+- Official Dart Sass `1.101.3` compiler
+- Variables, nesting, parent selectors and selector lists
+- Mixins, functions, conditionals, loops and arithmetic
+- At-rules including `@media`
+- Built-in modules such as `sass:color`, `sass:math` and `sass:list`
+- Structured compiler errors with line and column information
+- No network or remote compilation service
 
-The upstream Dart Sass implementation requires a Dart runtime. Rather than claim an unverified binary port, Harmony Sass starts with a clean ArkTS implementation of a useful SCSS-compatible subset, then expands compatibility through tested increments.
+The current editor compiles one in-memory SCSS document with Dart Sass
+`compileString()`. Built-in `sass:*` modules work. Imports from project files
+will require a HarmonyOS file picker and a virtual importer, which are tracked
+separately in the roadmap.
 
-## Features in 0.1
+## Upstream source
 
-- Native HarmonyOS ArkTS desktop-style editor UI
-- SCSS variables: `$brand: #0A7BFF;`
-- Nested selectors
-- Parent selectors: `&:hover`
-- Comma-separated selector lists
-- Clear compile errors for unbalanced braces and unresolved variables
-- ArkTS unit tests and HAP packaging configuration
+- Dart Sass implementation:
+  [sass/dart-sass](https://github.com/sass/dart-sass)
+- Sass language specification:
+  [sass/sass](https://github.com/sass/sass)
 
-### Example
-
-```scss
-$brand: #0A7BFF;
-
-.card {
-  padding: 20px;
-
-  .title {
-    color: $brand;
-  }
-
-  &:hover {
-    opacity: 0.9;
-  }
-}
-```
-
-Outputs:
-
-```css
-.card {
-  padding: 20px;
-}
-
-.card .title {
-  color: #0A7BFF;
-}
-
-.card:hover {
-  opacity: 0.9;
-}
-```
+The generated runtime in `entry/src/main/resources/rawfile` is built from the
+official `sass` npm distribution. Version and build dependencies are pinned in
+`tools/package.json`.
 
 ## Build
 
@@ -60,6 +41,7 @@ Outputs:
 
 - DevEco Studio with HarmonyOS **6.1.1 (API 24)** SDK
 - The Java runtime bundled with DevEco Studio
+- Node.js **20.19 or newer** to regenerate and test the Dart Sass runtime
 
 On macOS, run:
 
@@ -67,20 +49,39 @@ On macOS, run:
 bash ./scripts/verify.sh
 ```
 
-The script installs HarmonyOS package dependencies, runs unit tests, and creates an unsigned HAP. The expected package path is:
+The script:
+
+1. installs the pinned runtime build dependencies;
+2. rebuilds and tests the bundled Dart Sass runtime;
+3. installs HarmonyOS package dependencies;
+4. runs the ArkTS tests;
+5. creates an unsigned HAP.
+
+The expected package path is:
 
 ```text
 entry/build/default/outputs/default/entry-default-unsigned.hap
 ```
 
-> The HAP is unsigned for development. A release build requires your own signing configuration and HarmonyOS release credentials.
+The HAP is unsigned for development. A release build requires your own signing
+configuration and HarmonyOS release credentials.
 
-## Compatibility scope
+## Runtime verification
 
-This project is **not yet a drop-in Dart Sass replacement**. `0.1.0` intentionally supports the basic SCSS authoring workflow listed above. Unsupported directives will be evaluated as part of the roadmap, with behavior backed by tests before being advertised as compatible.
+The compatibility suite compares the bundled browser runtime byte-for-behavior
+with the same pinned official Dart Sass package:
 
-See [the roadmap](docs/ROADMAP.md) for planned work and [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidance.
+```bash
+npm --prefix tools ci
+npm --prefix tools run verify
+```
 
-## License
+Fixtures cover variables and nesting, mixins, media queries, conditionals,
+arithmetic, custom functions, built-in modules, quoted punctuation, local
+variable scope and retained comments.
 
-[MIT](LICENSE)
+## Licensing
+
+Harmony Sass is licensed under [MIT](LICENSE). The bundled Dart Sass
+distribution and its dependency notices are included alongside the runtime in
+`entry/src/main/resources/rawfile`.

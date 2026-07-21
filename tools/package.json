@@ -1,0 +1,16 @@
+{
+  "name": "harmony-sass-runtime-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ./build-runtime.mjs",
+    "test": "node ./test-runtime.mjs",
+    "verify": "npm run build && npm test"
+  },
+  "dependencies": {
+    "sass": "1.101.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
+  }
+}
