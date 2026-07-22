@@ -221,7 +221,10 @@ export default function dartSassRuntimeTest() {
         '{"ok":false,"version":"1.101.3","error":{"message":"Undefined variable.",' +
         '"formatted":"Undefined variable.","sassStack":"app.scss 2:8  root stylesheet\\n",' +
         '"stackTrace":"Error: Undefined variable.\\n    at compileString (sass.dart.js:1:2)",' +
-        '"line":2,"column":8}}'
+        '"line":2,"column":8,"span":{"text":"$missing",' +
+        '"context":".card { color: $missing; }","url":"harmony-sass:/app.scss",' +
+        '"start":{"line":2,"column":8,"offset":18},' +
+        '"end":{"line":2,"column":16,"offset":26}}}}'
       );
       expect(response.ok).assertFalse();
       expect(response.error?.line).assertEqual(2);
@@ -232,19 +235,41 @@ export default function dartSassRuntimeTest() {
       expect(
         response.error?.stackTrace?.includes('Error: Undefined variable')
       ).assertTrue();
+      expect(response.error?.span?.context).assertEqual(
+        '.card { color: $missing; }'
+      );
     });
 
     it('parses source maps, loaded URLs and warnings', 0, (): void => {
       const response: SassCompileResponse = DartSassRuntime.parseResponse(
         '{"ok":true,"version":"1.101.3","css":".a {}",' +
         '"sourceMap":"{\\"version\\":3}","loadedUrls":["harmony-sass:/app.scss"],' +
-        '"warnings":[{"message":"notice","deprecation":false}],' +
-        '"debugMessages":[{"message":"debug value"}]}'
+        '"warnings":[{"message":"deprecated","deprecation":true,' +
+        '"deprecationType":"global-builtin","deprecationMetadata":{' +
+        '"id":"global-builtin","status":"active",' +
+        '"description":"Global built-in functions.",' +
+        '"deprecatedIn":"1.80.0"},"span":{"text":"red(#123456)",' +
+        '"context":"$x: red(#123456);","url":"harmony-sass:/app.scss",' +
+        '"start":{"line":1,"column":5,"offset":4},' +
+        '"end":{"line":1,"column":17,"offset":16}}}],' +
+        '"debugMessages":[{"message":"debug value","span":{"text":"@debug 42",' +
+        '"context":"@debug 42;","url":"harmony-sass:/app.scss",' +
+        '"start":{"line":2,"column":1,"offset":18},' +
+        '"end":{"line":2,"column":10,"offset":27}}}]}'
       );
       expect(response.sourceMap).assertEqual('{"version":3}');
       expect(response.loadedUrls?.length).assertEqual(1);
-      expect(response.warnings?.[0].message).assertEqual('notice');
+      expect(response.warnings?.[0].deprecationMetadata?.id).assertEqual(
+        'global-builtin'
+      );
+      expect(response.warnings?.[0].deprecationMetadata?.status).assertEqual(
+        'active'
+      );
+      expect(response.warnings?.[0].span?.context).assertEqual(
+        '$x: red(#123456);'
+      );
       expect(response.debugMessages?.[0].message).assertEqual('debug value');
+      expect(response.debugMessages?.[0].span?.context).assertEqual('@debug 42;');
     });
   });
 }

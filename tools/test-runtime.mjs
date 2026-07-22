@@ -47,23 +47,7 @@ assert.equal(runtimeMetadata.info, sass.info);
 assert.deepEqual(runtimeMetadata.compilerModes, ['sync', 'async']);
 assert.deepEqual(
   runtimeMetadata.deprecations,
-  Object.values(sass.deprecations).map(deprecation => ({
-    id: String(deprecation.id),
-    status: String(deprecation.status),
-    ...(deprecation.description === undefined
-      ? {}
-      : {
-          description: deprecation.description === null
-            ? null
-            : String(deprecation.description)
-        }),
-    ...(deprecation.deprecatedIn
-      ? { deprecatedIn: String(deprecation.deprecatedIn) }
-      : {}),
-    ...(deprecation.obsoleteIn
-      ? { obsoleteIn: String(deprecation.obsoleteIn) }
-      : {})
-  })),
+  Object.values(sass.deprecations).map(deprecationSnapshot),
   'runtime metadata should match the pinned official Dart Sass package'
 );
 
@@ -97,12 +81,54 @@ async function runtimeCompileBatchAsync(request) {
   return JSON.parse(payload);
 }
 
+function deprecationSnapshot(deprecation) {
+  if (!deprecation) return undefined;
+  return {
+    id: String(deprecation.id),
+    status: String(deprecation.status),
+    ...(deprecation.description === undefined
+      ? {}
+      : {
+          description: deprecation.description === null
+            ? null
+            : String(deprecation.description)
+        }),
+    ...(deprecation.deprecatedIn
+      ? { deprecatedIn: String(deprecation.deprecatedIn) }
+      : {}),
+    ...(deprecation.obsoleteIn
+      ? { obsoleteIn: String(deprecation.obsoleteIn) }
+      : {})
+  };
+}
+
+function sourceSpanSnapshot(span) {
+  if (!span) return undefined;
+  return {
+    text: String(span.text),
+    ...(span.context === undefined ? {} : { context: String(span.context) }),
+    url: span.url ? String(span.url) : '',
+    start: {
+      line: span.start.line + 1,
+      column: span.start.column + 1,
+      offset: span.start.offset
+    },
+    end: {
+      line: span.end.line + 1,
+      column: span.end.column + 1,
+      offset: span.end.offset
+    }
+  };
+}
+
 function warningSnapshot(warnings) {
   return warnings.map(warning => ({
     message: warning.message,
     deprecation: warning.deprecation === true,
     deprecationType: warning.deprecationType,
-    stack: warning.stack
+    deprecationMetadata: warning.deprecationMetadata,
+    stack: warning.stack,
+    span: warning.span
   }));
 }
 
@@ -142,11 +168,18 @@ async function officialCompileSnapshot(source, request, asynchronous) {
               deprecationType: warningOptions.deprecationType
                 ? warningOptions.deprecationType.id
                 : undefined,
-              stack: warningOptions.stack || undefined
+              deprecationMetadata: deprecationSnapshot(
+                warningOptions.deprecationType
+              ),
+              stack: warningOptions.stack || undefined,
+              span: sourceSpanSnapshot(warningOptions.span)
             });
           },
-          debug(message) {
-            debugMessages.push({ message });
+          debug(message, debugOptions) {
+            debugMessages.push({
+              message,
+              span: sourceSpanSnapshot(debugOptions.span)
+            });
           }
         }
   };
@@ -182,7 +215,10 @@ function assertCompileSnapshot(actual, expected, label) {
     `${label} warnings should match`
   );
   assert.deepEqual(
-    (actual.debugMessages || []).map(message => ({ message: message.message })),
+    (actual.debugMessages || []).map(message => ({
+      message: message.message,
+      span: message.span
+    })),
     expected.debugMessages,
     `${label} debug messages should match`
   );
@@ -1100,6 +1136,30 @@ const debug = JSON.parse(context.harmonySass.compileProject({
 assert.equal(debug.ok, true);
 assert.equal(debug.debugMessages.length, 1);
 assert.match(debug.debugMessages[0].message, /42/);
+assert.equal(
+  debug.debugMessages[0].span.context,
+  '$answer: 6 * 7; @debug $answer; .card { width: $answer * 1px; }'
+);
+
+const deprecationWarning = JSON.parse(context.harmonySass.compileProject({
+  source: '$channel: red(#123456); .card { color: $channel; }'
+}));
+assert.equal(deprecationWarning.ok, true);
+assert.ok(deprecationWarning.warnings.length >= 1);
+for (const item of deprecationWarning.warnings) {
+  const officialDeprecation = Object.values(sass.deprecations).find(
+    deprecation => deprecation.id === item.deprecationType
+  );
+  assert.deepEqual(
+    item.deprecationMetadata,
+    deprecationSnapshot(officialDeprecation),
+    `${item.deprecationType} warning metadata should match Dart Sass`
+  );
+  assert.equal(
+    item.span.context,
+    '$channel: red(#123456); .card { color: $channel; }'
+  );
+}
 
 const quiet = JSON.parse(context.harmonySass.compileProject({
   source: '@warn "hidden"; @debug "hidden"; .card { color: red; }',
@@ -1834,6 +1894,7 @@ assert.match(failure.error.sassStack, /root stylesheet/);
 assertRuntimeStackTrace(failure.error, 'sync runtime error');
 assert.equal(failure.error.span.start.line, 1);
 assert.equal(failure.error.span.end.column, 24);
+assert.equal(failure.error.span.context, '.card { color: $missing; }');
 
 const asyncFailure = await runtimeCompileProjectAsync({
   source: '.card { color: $missing; }'

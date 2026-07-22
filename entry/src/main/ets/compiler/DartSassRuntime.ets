@@ -6,9 +6,18 @@ export interface SassSourcePosition {
 
 export interface SassSourceSpan {
   text: string;
+  context?: string;
   url: string;
   start: SassSourcePosition;
   end: SassSourcePosition;
+}
+
+export interface SassDeprecationMetadata {
+  id: string;
+  status: string;
+  description?: string | null;
+  deprecatedIn?: string;
+  obsoleteIn?: string;
 }
 
 export interface SassCompileError {
@@ -25,6 +34,7 @@ export interface SassWarning {
   message: string;
   deprecation: boolean;
   deprecationType?: string;
+  deprecationMetadata?: SassDeprecationMetadata;
   stack?: string;
   span?: SassSourceSpan;
 }
@@ -132,14 +142,6 @@ export interface SassFinalizedExportEntry {
 
 export interface SassExportFinalizeResponse {
   results: SassFinalizedExportEntry[];
-}
-
-export interface SassDeprecationMetadata {
-  id: string;
-  status: string;
-  description?: string | null;
-  deprecatedIn?: string;
-  obsoleteIn?: string;
 }
 
 export interface SassRuntimeMetadata {

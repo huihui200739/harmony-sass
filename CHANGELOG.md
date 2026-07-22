@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here.
 
+## 0.13.0 - 2026-07-22
+
+- Added the official `SourceSpan.context` field to structured errors,
+  deprecation warnings and debug messages when Dart Sass provides it.
+- Added the complete official `Deprecation` metadata object to each structured
+  deprecation warning while preserving the existing deprecation ID field.
+- Added official synchronous/asynchronous comparisons and ArkTS parsing
+  coverage for diagnostic source context and warning metadata.
+
 ## 0.12.0 - 2026-07-22
 
 - Added the official browser runtime JavaScript `Error.stack` to structured

@@ -25,8 +25,9 @@
 - [x] Partials, directory indexes, import-only files and ambiguity errors
 - [x] Official partial-first ambiguity diagnostics
 - [x] Official-compatible direct/index and Sass/CSS resolution precedence
-- [x] Structured errors, warnings, deprecation IDs, warning/error Sass stacks,
-      JavaScript runtime stack traces and `@debug`
+- [x] Structured errors, warnings, complete per-warning deprecation metadata,
+      full source-span context, warning/error Sass stacks, JavaScript runtime
+      stack traces and `@debug`
 - [x] Fatal deprecations by ID or Dart Sass version
 - [x] Sync/async parity checks for charset output, ASCII/color diagnostics,
       verbose warnings and deprecation option validation

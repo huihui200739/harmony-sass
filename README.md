@@ -51,8 +51,9 @@ than a rewritten or reduced compiler.
 - Automatic reload and recompilation when authorized source files change
   outside the app, with conflict protection for unsaved edits
 - Save-all behavior for modified files in a loaded project
-- Structured errors, warnings, deprecation IDs, warning and error Sass stacks,
-  JavaScript runtime stack traces and `@debug` messages
+- Structured errors, warnings, complete deprecation metadata, full source-span
+  context, warning and error Sass stacks, JavaScript runtime stack traces and
+  `@debug` messages
 - Official quiet logging, Error CSS and batch stop-on-error behavior
 - Fatal deprecations selected by either deprecation ID or Dart Sass version
 - Official `quietDeps` classification for relative files, virtual load paths
@@ -140,9 +141,10 @@ Fixtures cover single-document Sass behavior and project workflows including
 partials, modules, forwarding, legacy imports, output styles, input syntaxes,
 Source Maps, loaded URLs, batch entries, debug messages, deprecation controls,
 fatal deprecation versions, dependency warning classification, warnings and
-structured errors. The suite also compares official synchronous and
-asynchronous compiler results, loaded URLs and asynchronous batch
-stop-on-error behavior. Compiler-option fixtures compare `charset`,
+structured errors. Diagnostic fixtures compare complete source-span context
+and per-warning deprecation metadata. The suite also compares official
+synchronous and asynchronous compiler results, loaded URLs and asynchronous
+batch stop-on-error behavior. Compiler-option fixtures compare `charset`,
 `alertAscii`, `alertColor`, `verbose`, `fatalDeprecations`,
 `futureDeprecations` and `silenceDeprecations` through both compiler modes.
 They also verify explicit release of abandoned ArkWeb jobs. File-export

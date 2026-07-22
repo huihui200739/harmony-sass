@@ -54,26 +54,31 @@ async function compileStringAsync(source, options) {
   return asyncCompiler.compileStringAsync(source, options);
 }
 
+function serializeDeprecation(deprecation) {
+  if (!deprecation) return undefined;
+  return {
+    id: text(deprecation.id),
+    status: text(deprecation.status),
+    description: deprecation.description === undefined
+      ? undefined
+      : deprecation.description === null
+        ? null
+        : text(deprecation.description),
+    deprecatedIn: deprecation.deprecatedIn
+      ? text(deprecation.deprecatedIn)
+      : undefined,
+    obsoleteIn: deprecation.obsoleteIn
+      ? text(deprecation.obsoleteIn)
+      : undefined
+  };
+}
+
 function runtimeMetadata() {
   return {
     version: DART_SASS_VERSION,
     info: DART_SASS_INFO,
     compilerModes: ['sync', 'async'],
-    deprecations: Object.values(sass.deprecations).map(deprecation => ({
-      id: text(deprecation.id),
-      status: text(deprecation.status),
-      description: deprecation.description === undefined
-        ? undefined
-        : deprecation.description === null
-          ? null
-          : text(deprecation.description),
-      deprecatedIn: deprecation.deprecatedIn
-        ? text(deprecation.deprecatedIn)
-        : undefined,
-      obsoleteIn: deprecation.obsoleteIn
-        ? text(deprecation.obsoleteIn)
-        : undefined
-    }))
+    deprecations: Object.values(sass.deprecations).map(serializeDeprecation)
   };
 }
 
@@ -229,6 +234,7 @@ function serializeSpan(span) {
   if (!span) return undefined;
   return {
     text: text(span.text),
+    context: span.context === undefined ? undefined : text(span.context),
     url: span.url ? text(span.url) : '',
     start: {
       line: span.start.line + 1,
@@ -920,6 +926,9 @@ function createCompilationMessages(request) {
             deprecationType: options.deprecationType
               ? text(options.deprecationType.id)
               : undefined,
+            deprecationMetadata: serializeDeprecation(
+              options.deprecationType
+            ),
             stack: options.stack ? text(options.stack) : undefined,
             span: serializeSpan(options.span)
           });
