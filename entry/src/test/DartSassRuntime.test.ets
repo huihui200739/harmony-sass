@@ -1,6 +1,8 @@
 import { describe, expect, it } from '@ohos/hypium';
 import {
   DartSassRuntime,
+  SassBatchCompileRequest,
+  SassBatchCompileResponse,
   SassCompileRequest,
   SassCompileResponse
 } from '../main/ets/compiler/DartSassRuntime';
@@ -14,7 +16,8 @@ export default function dartSassRuntimeTest() {
       expect(script).assertEqual(
         'globalThis.harmonySass.compileProject({"source":".a::before { content: \\"` ${value} \\\\\\"\\"; }",' +
         '"entryPath":"stdin.scss","files":[],"loadPaths":[],"syntax":"scss","style":"expanded",' +
-        '"sourceMap":false,"sourceMapIncludeSources":true,"charset":true,"quietDeps":false,"verbose":false})'
+        '"sourceMap":false,"sourceMapIncludeSources":true,"charset":true,"quietDeps":false,"verbose":false,' +
+        '"fatalDeprecations":[],"futureDeprecations":[],"silenceDeprecations":[]})'
       );
     });
 
@@ -30,12 +33,43 @@ export default function dartSassRuntimeTest() {
         sourceMapIncludeSources: true,
         charset: false,
         quietDeps: true,
-        verbose: false
+        verbose: false,
+        fatalDeprecations: ['import'],
+        futureDeprecations: [],
+        silenceDeprecations: ['slash-div']
       };
       const script: string = DartSassRuntime.createProjectCompileScript(request);
       expect(script.startsWith('globalThis.harmonySass.compileProject(')).assertTrue();
       expect(script.includes('src/_tokens.scss')).assertTrue();
       expect(script.includes('"sourceMap":true')).assertTrue();
+      expect(script.includes('"fatalDeprecations":["import"]')).assertTrue();
+    });
+
+    it('serializes and parses batch compilation', 0, (): void => {
+      const request: SassBatchCompileRequest = {
+        entryPaths: ['src/app.scss', 'src/admin.scss'],
+        files: [
+          { path: 'src/app.scss', contents: '.app { color: blue; }' },
+          { path: 'src/admin.scss', contents: '.admin { color: red; }' }
+        ],
+        loadPaths: [],
+        style: 'expanded',
+        sourceMap: false,
+        sourceMapIncludeSources: true,
+        charset: true,
+        quietDeps: false,
+        verbose: false,
+        fatalDeprecations: [],
+        futureDeprecations: [],
+        silenceDeprecations: []
+      };
+      const script: string = DartSassRuntime.createBatchCompileScript(request);
+      expect(script.startsWith('globalThis.harmonySass.compileBatch(')).assertTrue();
+      const response: SassBatchCompileResponse = DartSassRuntime.parseBatchResponse(
+        '{"ok":true,"version":"1.101.3","results":[' +
+        '{"entryPath":"src/app.scss","ok":true,"version":"1.101.3","css":".app {}"}]}'
+      );
+      expect(response.results[0].entryPath).assertEqual('src/app.scss');
     });
 
     it('parses a successful runtime response', 0, (): void => {
@@ -69,11 +103,13 @@ export default function dartSassRuntimeTest() {
       const response: SassCompileResponse = DartSassRuntime.parseResponse(
         '{"ok":true,"version":"1.101.3","css":".a {}",' +
         '"sourceMap":"{\\"version\\":3}","loadedUrls":["harmony-sass:/app.scss"],' +
-        '"warnings":[{"message":"notice","deprecation":false}]}'
+        '"warnings":[{"message":"notice","deprecation":false}],' +
+        '"debugMessages":[{"message":"debug value"}]}'
       );
       expect(response.sourceMap).assertEqual('{"version":3}');
       expect(response.loadedUrls?.length).assertEqual(1);
       expect(response.warnings?.[0].message).assertEqual('notice');
+      expect(response.debugMessages?.[0].message).assertEqual('debug value');
     });
   });
 }

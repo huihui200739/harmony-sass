@@ -24,7 +24,12 @@ than a rewritten or reduced compiler.
 - Source file open, save and save-as
 - CSS copy and export, plus Source Map export
 - Manual or debounced automatic compilation
-- Structured errors with full Dart Sass spans and warning counts
+- Automatic reload and recompilation when authorized source files change
+  outside the app, with conflict protection for unsaved edits
+- Save-all behavior for modified files in a loaded project
+- Structured errors, warnings, deprecation IDs, Sass stacks and `@debug`
+  messages
+- Runtime batch compilation for multiple project entry stylesheets
 - PC shortcuts: `Ctrl+O`, `Ctrl+S`, `Ctrl+Shift+S` and `Ctrl+Enter`
 - No network service and no remote compilation
 
@@ -94,7 +99,8 @@ npm --prefix tools run verify
 
 Fixtures cover single-document Sass behavior and project workflows including
 partials, modules, forwarding, legacy imports, output styles, input syntaxes,
-Source Maps, loaded URLs, warnings and structured errors.
+Source Maps, loaded URLs, batch entries, debug messages, deprecation controls,
+warnings and structured errors.
 
 ## Licensing
 

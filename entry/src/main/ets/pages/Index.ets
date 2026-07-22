@@ -55,6 +55,18 @@ struct Index {
   private runtimeReady: boolean = false;
   private isCompiling: boolean = false;
   private compileTimer: number = -1;
+  private fileWatchTimer: number = -1;
+  private isCheckingFiles: boolean = false;
+  private fileSignatures: Map<string, string> = new Map<string, string>();
+  private dirtyPaths: Set<string> = new Set<string>();
+
+  aboutToDisappear(): void {
+    if (this.compileTimer >= 0) {
+      clearTimeout(this.compileTimer);
+      this.compileTimer = -1;
+    }
+    this.stopFileWatch();
+  }
 
   private compile(): void {
     if (!this.runtimeReady) {
@@ -82,7 +94,10 @@ struct Index {
         sourceMapIncludeSources: true,
         charset: true,
         quietDeps: false,
-        verbose: false
+        verbose: false,
+        fatalDeprecations: [],
+        futureDeprecations: [],
+        silenceDeprecations: []
       };
       const script: string = DartSassRuntime.createProjectCompileScript(request);
       const payload: string = await this.controller.runJavaScript(script);
@@ -108,11 +123,15 @@ struct Index {
 
   private successMessage(compiled: SassCompileResponse): string {
     const warnings: SassWarning[] = compiled.warnings ?? [];
+    const debugCount: number = compiled.debugMessages?.length ?? 0;
     const loadedCount: number = compiled.loadedUrls?.length ?? 1;
-    if (warnings.length === 0) {
+    if (warnings.length === 0 && debugCount === 0) {
       return `编译成功 · Dart Sass ${compiled.version} · 已载入 ${loadedCount} 个文件`;
     }
-    return `编译成功 · ${warnings.length} 条警告 · ${warnings[0].message}`;
+    if (warnings.length > 0) {
+      return `编译成功 · ${warnings.length} 条警告 · ${warnings[0].message}`;
+    }
+    return `编译成功 · ${debugCount} 条调试信息 · ${compiled.debugMessages?.[0].message}`;
   }
 
   private showCompileError(error: SassCompileError | undefined, warnings: SassWarning[]): void {
@@ -147,6 +166,115 @@ struct Index {
       this.compileTimer = -1;
       this.compile();
     }, 350);
+  }
+
+  private startFileWatch(): void {
+    if (!this.autoCompile || this.fileWatchTimer >= 0) {
+      return;
+    }
+    this.fileWatchTimer = setInterval((): void => {
+      this.checkExternalFiles();
+    }, 1200);
+    this.checkExternalFiles();
+  }
+
+  private stopFileWatch(): void {
+    if (this.fileWatchTimer >= 0) {
+      clearInterval(this.fileWatchTimer);
+      this.fileWatchTimer = -1;
+    }
+  }
+
+  private async fileSignature(uri: string): Promise<string> {
+    try {
+      const stat: fileIo.Stat = await fileIo.stat(uri);
+      return `${stat.mtime}:${stat.size}`;
+    } catch (_) {
+      return '';
+    }
+  }
+
+  private async rememberFileSignatures(): Promise<void> {
+    for (const file of this.files) {
+      if (file.uri.length === 0) {
+        continue;
+      }
+      try {
+        const signature: string = await this.fileSignature(file.uri);
+        if (signature.length > 0) {
+          this.fileSignatures.set(file.uri, signature);
+        }
+      } catch (_) {
+      }
+    }
+  }
+
+  private async refreshFileSignature(uri: string): Promise<void> {
+    if (uri.length === 0) {
+      return;
+    }
+    try {
+      const signature: string = await this.fileSignature(uri);
+      if (signature.length > 0) {
+        this.fileSignatures.set(uri, signature);
+      } else {
+        this.fileSignatures.delete(uri);
+      }
+    } catch (_) {
+      this.fileSignatures.delete(uri);
+    }
+  }
+
+  private async checkExternalFiles(): Promise<void> {
+    if (!this.autoCompile || this.isCheckingFiles) {
+      return;
+    }
+    this.isCheckingFiles = true;
+    const changedPaths: string[] = [];
+    const conflictPaths: string[] = [];
+    try {
+      const observedFiles: SassEditorFile[] = this.files.slice();
+      for (const file of observedFiles) {
+        if (file.uri.length === 0) {
+          continue;
+        }
+        try {
+          const signature: string = await this.fileSignature(file.uri);
+          if (signature.length === 0) {
+            continue;
+          }
+          const previous: string | undefined = this.fileSignatures.get(file.uri);
+          this.fileSignatures.set(file.uri, signature);
+          if (previous === undefined || previous === signature) {
+            continue;
+          }
+          if (this.dirtyPaths.has(file.path)) {
+            conflictPaths.push(file.path);
+            continue;
+          }
+          const contents: string = await fileIo.readText(file.uri);
+          this.files = SassProject.updateContents(this.files, file.path, contents);
+          if (file.path === this.activePath) {
+            this.source = contents;
+          }
+          changedPaths.push(file.path);
+        } catch (_) {
+        }
+      }
+    } finally {
+      this.isCheckingFiles = false;
+    }
+
+    if (conflictPaths.length > 0) {
+      this.isSuccessful = false;
+      this.statusMessage = `检测到外部修改冲突 · ${conflictPaths[0]} 尚未保存`;
+      return;
+    }
+    if (changedPaths.length > 0) {
+      this.isSuccessful = true;
+      this.statusMessage = `已重新载入外部修改 · ${changedPaths.length} 个文件`;
+      this.scheduleCompile();
+    }
   }
 
   private syncActiveSource(): void {
@@ -205,6 +333,9 @@ struct Index {
       this.syntax = file.syntax;
       this.result = '';
       this.sourceMapText = '';
+      this.dirtyPaths.clear();
+      this.fileSignatures.clear();
+      await this.rememberFileSignatures();
       this.statusMessage = `已打开 · ${file.path}`;
       this.isSuccessful = true;
       this.scheduleCompile();
@@ -220,6 +351,18 @@ struct Index {
         return;
       }
       this.syncActiveSource();
+      const dirtyUris: Set<string> = new Set<string>();
+      const dirtyVirtualPaths: Set<string> = new Set<string>();
+      for (const file of this.files) {
+        if (!this.dirtyPaths.has(file.path)) {
+          continue;
+        }
+        if (file.uri.length > 0) {
+          dirtyUris.add(file.uri);
+        } else {
+          dirtyVirtualPaths.add(file.path);
+        }
+      }
       const paths: string[] = SassProject.deriveVirtualPaths(uris);
       const incoming: SassEditorFile[] = [];
       for (let index: number = 0; index < uris.length; index++) {
@@ -233,6 +376,14 @@ struct Index {
       }
       const activeUri: string = this.activeFile().uri;
       this.files = SassProject.rebaseUriFiles(SassProject.mergeFiles(this.files, incoming));
+      const rebasedDirtyPaths: Set<string> = new Set<string>();
+      for (const file of this.files) {
+        if ((file.uri.length > 0 && dirtyUris.has(file.uri)) ||
+          (file.uri.length === 0 && dirtyVirtualPaths.has(file.path))) {
+          rebasedDirtyPaths.add(file.path);
+        }
+      }
+      this.dirtyPaths = rebasedDirtyPaths;
       if (activeUri.length > 0) {
         for (const file of this.files) {
           if (file.uri === activeUri) {
@@ -245,6 +396,7 @@ struct Index {
       }
       this.statusMessage = `已载入项目 · 共 ${this.files.length} 个 Sass/CSS 文件`;
       this.isSuccessful = true;
+      await this.rememberFileSignatures();
       this.scheduleCompile();
     } catch (error) {
       this.showActionError('载入项目失败', error);
@@ -266,16 +418,47 @@ struct Index {
   private async saveSource(forcePicker: boolean = false): Promise<void> {
     try {
       this.syncActiveSource();
-      let uri: string = this.activeFile().uri;
-      if (forcePicker || uri.length === 0) {
-        uri = await this.chooseSaveUri(this.activePath, 'Sass/CSS|.scss,.sass,.css');
+      if (forcePicker) {
+        const previousUri: string = this.activeFile().uri;
+        const uri: string = await this.chooseSaveUri(this.activePath, 'Sass/CSS|.scss,.sass,.css');
         if (uri.length === 0) {
           return;
         }
         this.files = SassProject.replaceUri(this.files, this.activePath, uri);
+        await this.writeText(uri, this.source);
+        this.dirtyPaths.delete(this.activePath);
+        if (previousUri.length > 0 && previousUri !== uri) {
+          this.fileSignatures.delete(previousUri);
+        }
+        await this.refreshFileSignature(uri);
+        this.statusMessage = `已另存为 · ${this.activePath}`;
+        this.isSuccessful = true;
+        return;
       }
-      await this.writeText(uri, this.source);
-      this.statusMessage = `已保存 · ${this.activePath}`;
+
+      let activeUri: string = this.activeFile().uri;
+      if (activeUri.length === 0) {
+        activeUri = await this.chooseSaveUri(this.activePath, 'Sass/CSS|.scss,.sass,.css');
+        if (activeUri.length === 0) {
+          return;
+        }
+        this.files = SassProject.replaceUri(this.files, this.activePath, activeUri);
+      }
+
+      let savedCount: number = 0;
+      for (const file of this.files) {
+        if (file.uri.length === 0 ||
+          (file.path !== this.activePath && !this.dirtyPaths.has(file.path))) {
+          continue;
+        }
+        await this.writeText(file.uri, file.contents);
+        this.dirtyPaths.delete(file.path);
+        await this.refreshFileSignature(file.uri);
+        savedCount++;
+      }
+      this.statusMessage = savedCount > 1
+        ? `已保存全部修改 · ${savedCount} 个文件`
+        : `已保存 · ${this.activePath}`;
       this.isSuccessful = true;
     } catch (error) {
       this.showActionError('保存失败', error);
@@ -386,6 +569,8 @@ struct Index {
     this.syntax = 'scss';
     this.result = '';
     this.sourceMapText = '';
+    this.dirtyPaths.clear();
+    this.fileSignatures.clear();
     this.statusMessage = '已载入示例。';
     this.isSuccessful = true;
     this.compile();
@@ -484,7 +669,10 @@ struct Index {
             .onChange((isOn: boolean): void => {
               this.autoCompile = isOn;
               if (isOn) {
+                this.startFileWatch();
                 this.scheduleCompile();
+              } else {
+                this.stopFileWatch();
               }
             })
           Blank().layoutWeight(1)
@@ -506,6 +694,7 @@ struct Index {
               .onChange((value: string): void => {
                 this.source = value;
                 this.syncActiveSource();
+                this.dirtyPaths.add(this.activePath);
                 this.scheduleCompile();
               })
           }.alignItems(HorizontalAlign.Start).layoutWeight(1).height('100%')

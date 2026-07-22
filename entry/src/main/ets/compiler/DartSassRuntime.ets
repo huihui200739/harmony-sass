@@ -22,6 +22,13 @@ export interface SassCompileError {
 export interface SassWarning {
   message: string;
   deprecation: boolean;
+  deprecationType?: string;
+  stack?: string;
+  span?: SassSourceSpan;
+}
+
+export interface SassDebugMessage {
+  message: string;
   span?: SassSourceSpan;
 }
 
@@ -43,6 +50,9 @@ export interface SassCompileRequest {
   charset: boolean;
   quietDeps: boolean;
   verbose: boolean;
+  fatalDeprecations: string[];
+  futureDeprecations: string[];
+  silenceDeprecations: string[];
 }
 
 export interface SassCompileResponse {
@@ -52,7 +62,33 @@ export interface SassCompileResponse {
   sourceMap?: string;
   loadedUrls?: string[];
   warnings?: SassWarning[];
+  debugMessages?: SassDebugMessage[];
   error?: SassCompileError;
+}
+
+export interface SassBatchCompileRequest {
+  entryPaths: string[];
+  files: SassProjectFile[];
+  loadPaths: string[];
+  style: string;
+  sourceMap: boolean;
+  sourceMapIncludeSources: boolean;
+  charset: boolean;
+  quietDeps: boolean;
+  verbose: boolean;
+  fatalDeprecations: string[];
+  futureDeprecations: string[];
+  silenceDeprecations: string[];
+}
+
+export interface SassBatchCompileResult extends SassCompileResponse {
+  entryPath: string;
+}
+
+export interface SassBatchCompileResponse {
+  ok: boolean;
+  version: string;
+  results: SassBatchCompileResult[];
 }
 
 export class DartSassRuntime {
@@ -68,7 +104,10 @@ export class DartSassRuntime {
       sourceMapIncludeSources: true,
       charset: true,
       quietDeps: false,
-      verbose: false
+      verbose: false,
+      fatalDeprecations: [],
+      futureDeprecations: [],
+      silenceDeprecations: []
     };
     return DartSassRuntime.createProjectCompileScript(request);
   }
@@ -77,11 +116,24 @@ export class DartSassRuntime {
     return `globalThis.harmonySass.compileProject(${JSON.stringify(request)})`;
   }
 
+  static createBatchCompileScript(request: SassBatchCompileRequest): string {
+    return `globalThis.harmonySass.compileBatch(${JSON.stringify(request)})`;
+  }
+
   static parseResponse(payload: string): SassCompileResponse {
     const decoded: SassCompileResponse | string =
       JSON.parse(payload) as SassCompileResponse | string;
     if (typeof decoded === 'string') {
       return JSON.parse(decoded) as SassCompileResponse;
+    }
+    return decoded;
+  }
+
+  static parseBatchResponse(payload: string): SassBatchCompileResponse {
+    const decoded: SassBatchCompileResponse | string =
+      JSON.parse(payload) as SassBatchCompileResponse | string;
+    if (typeof decoded === 'string') {
+      return JSON.parse(decoded) as SassBatchCompileResponse;
     }
     return decoded;
   }

@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## 0.4.0 - 2026-07-22
+
+- Added official Dart Sass deprecation controls to the ArkWeb runtime bridge.
+- Added structured deprecation IDs, Sass warning stacks and `@debug` messages.
+- Added batch compilation for multiple entry stylesheets in one virtual
+  project.
+- Added external document change detection while automatic compilation is
+  enabled, including unsaved-edit conflict protection.
+- Changed the existing save action to persist all modified project files while
+  keeping save-as scoped to the active file.
+- Expanded runtime and ArkTS coverage for diagnostics and batch compilation.
+
 ## 0.3.0 - 2026-07-22
 
 - Added an in-memory multi-file project importer backed by official Dart Sass.

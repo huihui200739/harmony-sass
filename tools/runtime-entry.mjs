@@ -9,6 +9,13 @@ function text(value) {
   return value === undefined || value === null ? '' : String(value);
 }
 
+function stringList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => text(item).trim())
+    .filter(item => item.length > 0);
+}
+
 function decode(value) {
   try {
     return decodeURIComponent(value);
@@ -155,7 +162,10 @@ function normalizeRequest(value) {
     sourceMapIncludeSources: request.sourceMapIncludeSources !== false,
     charset: request.charset !== false,
     quietDeps: request.quietDeps === true,
-    verbose: request.verbose === true
+    verbose: request.verbose === true,
+    fatalDeprecations: stringList(request.fatalDeprecations),
+    futureDeprecations: stringList(request.futureDeprecations),
+    silenceDeprecations: stringList(request.silenceDeprecations)
   };
 }
 
@@ -240,10 +250,11 @@ function createImporter(files, loadPaths) {
   };
 }
 
-function compileProject(value) {
+function compileProjectResult(value) {
   const request = normalizeRequest(value);
   const files = createProject(request);
   const warnings = [];
+  const debugMessages = [];
   const importer = createImporter(files, request.loadPaths);
 
   try {
@@ -256,32 +267,101 @@ function compileProject(value) {
       charset: request.charset,
       quietDeps: request.quietDeps,
       verbose: request.verbose,
+      fatalDeprecations: request.fatalDeprecations,
+      futureDeprecations: request.futureDeprecations,
+      silenceDeprecations: request.silenceDeprecations,
       importers: [importer],
       logger: {
         warn(message, options) {
           warnings.push({
             message: text(message),
             deprecation: options.deprecation === true,
+            deprecationType: options.deprecationType
+              ? text(options.deprecationType.id)
+              : undefined,
+            stack: options.stack ? text(options.stack) : undefined,
             span: serializeSpan(options.span)
           });
         },
-        debug() {}
+        debug(message, options) {
+          debugMessages.push({
+            message: text(message),
+            span: serializeSpan(options.span)
+          });
+        }
       }
     });
 
-    return JSON.stringify({
+    return {
       ok: true,
       version: DART_SASS_VERSION,
       css: result.css,
       sourceMap: result.sourceMap ? JSON.stringify(result.sourceMap) : '',
       loadedUrls: result.loadedUrls.map(url => text(url)),
-      warnings
-    });
+      warnings,
+      debugMessages
+    };
   } catch (error) {
     const response = serializeError(error);
     response.warnings = warnings;
-    return JSON.stringify(response);
+    response.debugMessages = debugMessages;
+    return response;
   }
+}
+
+function compileProject(value) {
+  return JSON.stringify(compileProjectResult(value));
+}
+
+function compileBatch(value) {
+  const request = value && typeof value === 'object' ? value : {};
+  const files = Array.isArray(request.files) ? request.files : [];
+  const projectFiles = new Map();
+  for (const candidate of files) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const path = normalizePath(candidate.path);
+    if (!path) continue;
+    projectFiles.set(path, candidate);
+  }
+
+  const results = [];
+  for (const requestedPath of stringList(request.entryPaths)) {
+    const entryPath = normalizePath(requestedPath);
+    const entry = projectFiles.get(entryPath);
+    if (!entry) {
+      results.push({
+        entryPath,
+        ok: false,
+        version: DART_SASS_VERSION,
+        warnings: [],
+        debugMessages: [],
+        error: {
+          message: `Entry stylesheet "${entryPath}" was not found.`,
+          formatted: `Entry stylesheet "${entryPath}" was not found.`,
+          line: 0,
+          column: 0
+        }
+      });
+      continue;
+    }
+
+    results.push({
+      entryPath,
+      ...compileProjectResult({
+        ...request,
+        source: entry.contents,
+        entryPath,
+        syntax: syntaxForPath(entryPath, entry.syntax),
+        files
+      })
+    });
+  }
+
+  return JSON.stringify({
+    ok: results.length > 0 && results.every(result => result.ok),
+    version: DART_SASS_VERSION,
+    results
+  });
 }
 
 globalThis.harmonySass = Object.freeze({
@@ -289,5 +369,6 @@ globalThis.harmonySass = Object.freeze({
   compile(source) {
     return compileProject({ source });
   },
-  compileProject
+  compileProject,
+  compileBatch
 });

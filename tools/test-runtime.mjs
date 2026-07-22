@@ -165,6 +165,54 @@ assert.equal(warning.ok, true);
 assert.equal(warning.warnings.length, 1);
 assert.match(warning.warnings[0].message, /check me/);
 
+const debug = JSON.parse(context.harmonySass.compileProject({
+  source: '$answer: 6 * 7; @debug $answer; .card { width: $answer * 1px; }'
+}));
+assert.equal(debug.ok, true);
+assert.equal(debug.debugMessages.length, 1);
+assert.match(debug.debugMessages[0].message, /42/);
+
+const silencedDeprecation = JSON.parse(context.harmonySass.compileProject({
+  source: '@import "legacy";',
+  entryPath: 'app.scss',
+  silenceDeprecations: ['import'],
+  files: [{ path: '_legacy.scss', contents: '.legacy { display: block; }' }]
+}));
+assert.equal(silencedDeprecation.ok, true);
+assert.equal(silencedDeprecation.warnings.length, 0);
+
+const fatalDeprecation = JSON.parse(context.harmonySass.compileProject({
+  source: '@import "legacy";',
+  entryPath: 'app.scss',
+  fatalDeprecations: ['import'],
+  files: [{ path: '_legacy.scss', contents: '.legacy { display: block; }' }]
+}));
+assert.equal(fatalDeprecation.ok, false);
+assert.match(fatalDeprecation.error.message, /deprecated/i);
+
+const batch = JSON.parse(context.harmonySass.compileBatch({
+  entryPaths: ['src/app.scss', 'src/admin.scss', 'src/missing.scss'],
+  files: [
+    {
+      path: 'src/app.scss',
+      contents: '@use "tokens"; .app { color: tokens.$brand; }'
+    },
+    {
+      path: 'src/admin.scss',
+      contents: '@use "tokens"; .admin { border-color: tokens.$brand; }'
+    },
+    { path: 'src/_tokens.scss', contents: '$brand: #0a7bff;' }
+  ]
+}));
+assert.equal(batch.ok, false);
+assert.equal(batch.results.length, 3);
+assert.equal(batch.results[0].ok, true);
+assert.match(batch.results[0].css, /\.app/);
+assert.equal(batch.results[1].ok, true);
+assert.match(batch.results[1].css, /\.admin/);
+assert.equal(batch.results[2].ok, false);
+assert.match(batch.results[2].error.message, /was not found/);
+
 const failure = JSON.parse(
   context.harmonySass.compile('.card { color: $missing; }')
 );
@@ -176,5 +224,5 @@ assert.equal(failure.error.span.start.line, 1);
 assert.equal(failure.error.span.end.column, 24);
 
 console.log(
-  `Verified ${fixtures.length} single-document fixtures and project workflow against Dart Sass ${sassPackage.version}.`
+  `Verified ${fixtures.length} single-document fixtures, diagnostics, deprecations, and project workflows against Dart Sass ${sassPackage.version}.`
 );
