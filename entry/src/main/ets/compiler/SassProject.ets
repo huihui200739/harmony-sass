@@ -87,6 +87,35 @@ export class SassProject {
     return merged;
   }
 
+  static withoutUntouchedPlaceholder(
+    files: SassEditorFile[],
+    placeholderPath: string,
+    placeholderContents: string,
+    dirtyPaths: string[]
+  ): SassEditorFile[] {
+    if (files.length !== 1) {
+      return files;
+    }
+    const file: SassEditorFile = files[0];
+    if (file.uri.length > 0 ||
+      file.path !== placeholderPath ||
+      file.contents !== placeholderContents ||
+      dirtyPaths.includes(file.path)) {
+      return files;
+    }
+    return [];
+  }
+
+  static uniqueUris(uris: string[]): string[] {
+    const unique: string[] = [];
+    for (const uri of uris) {
+      if (uri.length > 0 && !unique.includes(uri)) {
+        unique.push(uri);
+      }
+    }
+    return unique;
+  }
+
   static rebaseUriFiles(files: SassEditorFile[]): SassEditorFile[] {
     const uris: string[] = [];
     for (const file of files) {
@@ -104,7 +133,7 @@ export class SassProject {
         path: rebasedPaths[uriIndex],
         uri: file.uri,
         contents: file.contents,
-        syntax: SassProject.syntaxForPath(rebasedPaths[uriIndex])
+        syntax: file.syntax
       };
       uriIndex++;
       return rebased;
@@ -125,6 +154,20 @@ export class SassProject {
     });
   }
 
+  static updateSyntax(files: SassEditorFile[], path: string, syntax: string): SassEditorFile[] {
+    return files.map((file: SassEditorFile): SassEditorFile => {
+      if (file.path !== path) {
+        return file;
+      }
+      return {
+        path: file.path,
+        uri: file.uri,
+        contents: file.contents,
+        syntax
+      };
+    });
+  }
+
   static compilerFiles(files: SassEditorFile[], entryPath: string): SassProjectFile[] {
     const compilerFiles: SassProjectFile[] = [];
     for (const file of files) {
@@ -138,6 +181,61 @@ export class SassProject {
       });
     }
     return compilerFiles;
+  }
+
+  static entryPaths(files: SassEditorFile[], fallbackPath: string = ''): string[] {
+    const entries: string[] = [];
+    for (const file of files) {
+      const normalized: string = SassProject.normalizePath(file.path);
+      const name: string = normalized.split('/').pop() ?? normalized;
+      const lowerName: string = name.toLowerCase();
+      if (name.startsWith('_') ||
+        (!lowerName.endsWith('.scss') &&
+          !lowerName.endsWith('.sass') &&
+          !lowerName.endsWith('.css'))) {
+        continue;
+      }
+      entries.push(normalized);
+    }
+    if (entries.length === 0 && fallbackPath.length > 0) {
+      entries.push(SassProject.normalizePath(fallbackPath));
+    }
+    return entries;
+  }
+
+  static outputFileNames(entryPaths: string[], suffix: string): string[] {
+    const stems: string[] = entryPaths.map((path: string): string => {
+      const normalized: string = SassProject.normalizePath(path);
+      const name: string = normalized.split('/').pop() ?? normalized;
+      const dotIndex: number = name.lastIndexOf('.');
+      return dotIndex > 0 ? name.slice(0, dotIndex) : name;
+    });
+    const names: string[] = [];
+    for (let index: number = 0; index < entryPaths.length; index++) {
+      let stem: string = stems[index];
+      let duplicateCount: number = 0;
+      for (const candidate of stems) {
+        if (candidate === stem) {
+          duplicateCount++;
+        }
+      }
+      if (duplicateCount > 1) {
+        const normalized: string = SassProject.normalizePath(entryPaths[index]);
+        const segments: string[] = normalized.split('/');
+        segments.pop();
+        if (segments.length > 0) {
+          stem = `${segments.join('-')}-${stem}`;
+        }
+      }
+      let outputName: string = stem + suffix;
+      let counter: number = 2;
+      while (names.includes(outputName)) {
+        outputName = `${stem}-${counter}${suffix}`;
+        counter++;
+      }
+      names.push(outputName);
+    }
+    return names;
   }
 
   static replaceUri(files: SassEditorFile[], path: string, uri: string): SassEditorFile[] {

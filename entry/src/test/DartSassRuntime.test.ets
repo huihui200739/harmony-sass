@@ -16,6 +16,7 @@ export default function dartSassRuntimeTest() {
       expect(script).assertEqual(
         'globalThis.harmonySass.compileProject({"source":".a::before { content: \\"` ${value} \\\\\\"\\"; }",' +
         '"entryPath":"stdin.scss","files":[],"loadPaths":[],"syntax":"scss","style":"expanded",' +
+        '"alertAscii":false,"alertColor":false,' +
         '"sourceMap":false,"sourceMapIncludeSources":true,"charset":true,"quietDeps":false,"verbose":false,' +
         '"fatalDeprecations":[],"futureDeprecations":[],"silenceDeprecations":[]})'
       );
@@ -29,6 +30,8 @@ export default function dartSassRuntimeTest() {
         loadPaths: ['src'],
         syntax: 'scss',
         style: 'compressed',
+        alertAscii: false,
+        alertColor: false,
         sourceMap: true,
         sourceMapIncludeSources: true,
         charset: false,
@@ -54,6 +57,8 @@ export default function dartSassRuntimeTest() {
         ],
         loadPaths: [],
         style: 'expanded',
+        alertAscii: false,
+        alertColor: false,
         sourceMap: false,
         sourceMapIncludeSources: true,
         charset: true,

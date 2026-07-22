@@ -1,32 +1,41 @@
-# Roadmap
+# Compatibility Status
 
-## v0.1 - MVP
+## Implemented
 
 - [x] Native HarmonyOS PC two-pane editor UI
-- [x] Basic handwritten SCSS subset
-- [x] ArkTS unit tests
-- [x] Unsigned HAP build
+- [x] Official Dart Sass `1.101.3` browser runtime
+- [x] SCSS, indented Sass and CSS input
+- [x] Complete Sass language semantics supplied by Dart Sass
+- [x] Built-in `sass:*` modules and Sass-authored `@function`
+- [x] Expanded and compressed CSS
+- [x] Source Maps with embedded sources
+- [x] Virtual multi-file projects and load paths
+- [x] Relative `@use`, `@forward` and legacy `@import`
+- [x] Partials, directory indexes, import-only files and ambiguity errors
+- [x] Official-compatible direct/index and Sass/CSS resolution precedence
+- [x] Structured errors, warnings, deprecation IDs, stacks and `@debug`
+- [x] Multiple-entry batch CSS and Source Map export
+- [x] Open, save, save-as, save-all, copy and keyboard workflows
+- [x] Automatic compilation and authorized external-file reload
+- [x] Recursive folder discovery with deduplication and a 500-file limit
+- [x] Project and compiler-option session restoration
+- [x] ArkTS tests, official runtime comparisons and unsigned HAP build
 
-## v0.2 - Official Dart Sass runtime
+## Requires target-device validation
 
-- [x] Remove the handwritten `ScssLite` compiler
-- [x] Bundle official Dart Sass locally
-- [x] Preserve the existing visible UI
-- [x] Support complete single-document SCSS semantics
-- [x] Report official Sass line and column errors
-- [x] Compare compatibility fixtures with the pinned upstream package
+- [ ] Confirm recursive document-provider child URIs on HarmonyOS PC hardware
+- [ ] Confirm mixed file/folder picker support on all target PC device models
+- [ ] Configure release signing and produce a signed distribution HAP
 
-## v0.3 - Project workflow
+## Not faithfully portable to the current runtime
 
-- [ ] Open and save `.scss` files
-- [ ] Add a virtual importer for partials and project-relative `@use`
-- [ ] Copy CSS output
-- [ ] Desktop keyboard shortcuts
-- [ ] Show the full formatted error span
+- [ ] Host JavaScript callbacks through `Options.functions`
+- [ ] External JavaScript `Importer` and `FileImporter` callback objects
+- [ ] `NodePackageImporter`, `pkg:` URLs and Node package exports
+- [ ] Dart Sass Embedded Protocol
+- [ ] Complete Dart Sass CLI stdin/stdout, directory mapping, flags and watch
 
-## v1.0 - Product readiness
-
-- [ ] Syntax highlighting and formatting
-- [ ] Project folders and build profiles
-- [ ] HarmonyOS PC device validation
-- [ ] Signed release package and release notes
+These items depend on a Node.js filesystem/process environment or callback
+objects that cannot cross the current ArkTS-to-ArkWeb JSON bridge. They are
+documented as platform boundaries rather than replaced with incompatible
+approximations.

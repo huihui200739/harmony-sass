@@ -58,11 +58,88 @@ export default function sassProjectTest() {
           path: '_button.scss',
           uri: 'file://docs/project/src/components/_button.scss',
           contents: '',
-          syntax: 'scss'
+          syntax: 'indented'
         }
       ]);
       expect(files[0].path).assertEqual('main.scss');
       expect(files[1].path).assertEqual('components/_button.scss');
+      expect(files[1].syntax).assertEqual('indented');
+    });
+
+    it('selects non-partial entry files and creates unique output names', 0, (): void => {
+      const files: SassEditorFile[] = [
+        {
+          path: 'src/app.scss',
+          uri: 'file://src/app.scss',
+          contents: '',
+          syntax: 'scss'
+        },
+        {
+          path: 'src/_tokens.scss',
+          uri: 'file://src/_tokens.scss',
+          contents: '',
+          syntax: 'scss'
+        },
+        {
+          path: 'admin/app.scss',
+          uri: 'file://admin/app.scss',
+          contents: '',
+          syntax: 'scss'
+        }
+      ];
+      const entries: string[] = SassProject.entryPaths(files);
+      expect(entries.length).assertEqual(2);
+      expect(entries[0]).assertEqual('src/app.scss');
+      expect(entries[1]).assertEqual('admin/app.scss');
+      const names: string[] = SassProject.outputFileNames(entries, '.css');
+      expect(names[0]).assertEqual('src-app.css');
+      expect(names[1]).assertEqual('admin-app.css');
+    });
+
+    it('keeps a manually selected syntax in the project model', 0, (): void => {
+      const files: SassEditorFile[] = [{
+        path: 'template.scss',
+        uri: 'file://template.scss',
+        contents: '.card\n  color: red',
+        syntax: 'scss'
+      }];
+      const updated: SassEditorFile[] =
+        SassProject.updateSyntax(files, 'template.scss', 'indented');
+      expect(updated[0].syntax).assertEqual('indented');
+      expect(files[0].syntax).assertEqual('scss');
+    });
+
+    it('removes only an untouched placeholder when a real project is loaded', 0, (): void => {
+      const placeholder: SassEditorFile = {
+        path: 'untitled.scss',
+        uri: '',
+        contents: '.sample { color: blue; }',
+        syntax: 'scss'
+      };
+      expect(SassProject.withoutUntouchedPlaceholder(
+        [placeholder],
+        placeholder.path,
+        placeholder.contents,
+        []
+      ).length).assertEqual(0);
+      expect(SassProject.withoutUntouchedPlaceholder(
+        [placeholder],
+        placeholder.path,
+        placeholder.contents,
+        [placeholder.path]
+      ).length).assertEqual(1);
+    });
+
+    it('deduplicates project document uris in selection order', 0, (): void => {
+      const uris: string[] = SassProject.uniqueUris([
+        'file://main.scss',
+        'file://_tokens.scss',
+        'file://main.scss',
+        ''
+      ]);
+      expect(uris.length).assertEqual(2);
+      expect(uris[0]).assertEqual('file://main.scss');
+      expect(uris[1]).assertEqual('file://_tokens.scss');
     });
   });
 }

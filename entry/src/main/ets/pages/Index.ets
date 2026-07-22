@@ -1,12 +1,18 @@
 import { pasteboard } from '@kit.BasicServicesKit';
 import { fileIo, picker } from '@kit.CoreFileKit';
+import { preferences } from '@kit.ArkData';
 import { KeyCode } from '@kit.InputKit';
 import { webview } from '@kit.ArkWeb';
 import {
   DartSassRuntime,
+  SassBatchCompileRequest,
+  SassBatchCompileResponse,
+  SassBatchCompileResult,
   SassCompileError,
   SassCompileRequest,
   SassCompileResponse,
+  SassDebugMessage,
+  SassSourceSpan,
   SassWarning
 } from '../compiler/DartSassRuntime';
 import { SassEditorFile, SassProject } from '../compiler/SassProject';
@@ -35,12 +41,14 @@ const SAMPLE_FILE: SassEditorFile = {
   contents: SAMPLE_SCSS,
   syntax: 'scss'
 };
+const MAX_PROJECT_FILES: number = 500;
 
 @Entry
 @Component
 struct Index {
   @State private source: string = SAMPLE_SCSS;
   @State private result: string = '';
+  @State private displayResult: string = '';
   @State private sourceMapText: string = '';
   @State private files: SassEditorFile[] = [SAMPLE_FILE];
   @State private activePath: string = SAMPLE_FILE.path;
@@ -51,21 +59,200 @@ struct Index {
   @State private autoCompile: boolean = false;
   @State private statusMessage: string = '准备就绪：输入 SCSS 后点击“编译”。';
   @State private isSuccessful: boolean = true;
+  @State private diagnosticCount: number = 0;
   private controller: webview.WebviewController = new webview.WebviewController();
   private runtimeReady: boolean = false;
   private isCompiling: boolean = false;
+  private compilePending: boolean = false;
   private compileTimer: number = -1;
   private fileWatchTimer: number = -1;
+  private preferencesTimer: number = -1;
   private isCheckingFiles: boolean = false;
   private fileSignatures: Map<string, string> = new Map<string, string>();
   private dirtyPaths: Set<string> = new Set<string>();
+  private preferenceStore: preferences.Preferences | null = null;
+
+  async aboutToAppear(): Promise<void> {
+    await this.restoreSession();
+  }
 
   aboutToDisappear(): void {
     if (this.compileTimer >= 0) {
       clearTimeout(this.compileTimer);
       this.compileTimer = -1;
     }
+    if (this.preferencesTimer >= 0) {
+      clearTimeout(this.preferencesTimer);
+      this.preferencesTimer = -1;
+    }
+    this.saveSession();
     this.stopFileWatch();
+  }
+
+  private async restoreSession(): Promise<void> {
+    try {
+      const context = this.getUIContext().getHostContext();
+      if (context === undefined) {
+        return;
+      }
+      this.preferenceStore = await preferences.getPreferences(
+        context,
+        'harmony-sass-session'
+      );
+      const savedSyntax: preferences.ValueType =
+        await this.preferenceStore.get('syntax', this.syntax);
+      const savedStyle: preferences.ValueType =
+        await this.preferenceStore.get('outputStyle', this.outputStyle);
+      const savedLoadPaths: preferences.ValueType =
+        await this.preferenceStore.get('loadPaths', '');
+      const savedSourceMap: preferences.ValueType =
+        await this.preferenceStore.get('sourceMap', false);
+      const savedAutoCompile: preferences.ValueType =
+        await this.preferenceStore.get('autoCompile', false);
+      const emptySyntaxUris: string[] = [];
+      const emptySyntaxValues: string[] = [];
+      const savedSyntaxUrisValue: preferences.ValueType =
+        await this.preferenceStore.get('syntaxUris', emptySyntaxUris);
+      const savedSyntaxValuesValue: preferences.ValueType =
+        await this.preferenceStore.get('syntaxValues', emptySyntaxValues);
+      if (typeof savedSyntax === 'string' && this.isSupportedSyntax(savedSyntax)) {
+        this.syntax = savedSyntax;
+      }
+      if (typeof savedStyle === 'string' && this.isSupportedOutputStyle(savedStyle)) {
+        this.outputStyle = savedStyle;
+      }
+      if (typeof savedLoadPaths === 'string') {
+        this.loadPathsText = savedLoadPaths;
+      }
+      if (typeof savedSourceMap === 'boolean') {
+        this.sourceMapEnabled = savedSourceMap;
+      }
+      if (typeof savedAutoCompile === 'boolean') {
+        this.autoCompile = savedAutoCompile;
+      }
+
+      const emptyUris: string[] = [];
+      const savedUrisValue: preferences.ValueType =
+        await this.preferenceStore.get('projectUris', emptyUris);
+      const savedActiveUriValue: preferences.ValueType =
+        await this.preferenceStore.get('activeUri', '');
+      const savedUris: string[] = [];
+      if (Array.isArray(savedUrisValue)) {
+        const uriValues: string[] = savedUrisValue as string[];
+        for (const value of uriValues) {
+          if (savedUris.length >= MAX_PROJECT_FILES) {
+            break;
+          }
+          if (typeof value === 'string' &&
+            value.length > 0 &&
+            !savedUris.includes(value)) {
+            savedUris.push(value);
+          }
+        }
+      }
+      const restoredFiles: SassEditorFile[] = [];
+      const savedSyntaxUris: string[] = Array.isArray(savedSyntaxUrisValue)
+        ? savedSyntaxUrisValue as string[]
+        : [];
+      const savedSyntaxValues: string[] = Array.isArray(savedSyntaxValuesValue)
+        ? savedSyntaxValuesValue as string[]
+        : [];
+      for (const uri of savedUris) {
+        try {
+          const contents: string = await fileIo.readText(uri);
+          const path: string = SassProject.fileNameFromUri(uri);
+          let restoredSyntax: string = SassProject.syntaxForPath(path);
+          const syntaxIndex: number = savedSyntaxUris.indexOf(uri);
+          if (syntaxIndex >= 0 &&
+            syntaxIndex < savedSyntaxValues.length &&
+            this.isSupportedSyntax(savedSyntaxValues[syntaxIndex])) {
+            restoredSyntax = savedSyntaxValues[syntaxIndex];
+          }
+          restoredFiles.push({
+            path,
+            uri,
+            contents,
+            syntax: restoredSyntax
+          });
+        } catch (_) {
+        }
+      }
+      if (restoredFiles.length > 0) {
+        this.files = SassProject.rebaseUriFiles(restoredFiles);
+        let activeIndex: number = 0;
+        if (typeof savedActiveUriValue === 'string') {
+          for (let index: number = 0; index < this.files.length; index++) {
+            if (this.files[index].uri === savedActiveUriValue) {
+              activeIndex = index;
+              break;
+            }
+          }
+        }
+        const activeFile: SassEditorFile = this.files[activeIndex];
+        this.activePath = activeFile.path;
+        this.source = activeFile.contents;
+        this.syntax = activeFile.syntax;
+        this.statusMessage = `已恢复项目 · ${this.files.length} 个文件`;
+        await this.rememberFileSignatures();
+      }
+      if (this.autoCompile) {
+        this.startFileWatch();
+      }
+    } catch (_) {
+      this.preferenceStore = null;
+    }
+  }
+
+  private isSupportedSyntax(value: string): boolean {
+    return value === 'scss' || value === 'indented' || value === 'css';
+  }
+
+  private isSupportedOutputStyle(value: string): boolean {
+    return value === 'expanded' || value === 'compressed';
+  }
+
+  private scheduleSessionSave(): void {
+    if (this.preferenceStore === null) {
+      return;
+    }
+    if (this.preferencesTimer >= 0) {
+      clearTimeout(this.preferencesTimer);
+    }
+    this.preferencesTimer = setTimeout((): void => {
+      this.preferencesTimer = -1;
+      this.saveSession();
+    }, 250);
+  }
+
+  private async saveSession(): Promise<void> {
+    if (this.preferenceStore === null) {
+      return;
+    }
+    try {
+      const projectUris: string[] = [];
+      const syntaxUris: string[] = [];
+      const syntaxValues: string[] = [];
+      for (const file of this.files) {
+        if (file.uri.length > 0 &&
+          !projectUris.includes(file.uri) &&
+          projectUris.length < MAX_PROJECT_FILES) {
+          projectUris.push(file.uri);
+          syntaxUris.push(file.uri);
+          syntaxValues.push(file.syntax);
+        }
+      }
+      await this.preferenceStore.put('syntax', this.syntax);
+      await this.preferenceStore.put('outputStyle', this.outputStyle);
+      await this.preferenceStore.put('loadPaths', this.loadPathsText);
+      await this.preferenceStore.put('sourceMap', this.sourceMapEnabled);
+      await this.preferenceStore.put('autoCompile', this.autoCompile);
+      await this.preferenceStore.put('projectUris', projectUris);
+      await this.preferenceStore.put('activeUri', this.activeFile().uri);
+      await this.preferenceStore.put('syntaxUris', syntaxUris);
+      await this.preferenceStore.put('syntaxValues', syntaxValues);
+      await this.preferenceStore.flush();
+    } catch (_) {
+    }
   }
 
   private compile(): void {
@@ -74,6 +261,7 @@ struct Index {
       return;
     }
     if (this.isCompiling) {
+      this.compilePending = true;
       return;
     }
     this.isCompiling = true;
@@ -90,6 +278,8 @@ struct Index {
         loadPaths: this.loadPaths(),
         syntax: this.syntax,
         style: this.outputStyle,
+        alertAscii: false,
+        alertColor: false,
         sourceMap: this.sourceMapEnabled,
         sourceMapIncludeSources: true,
         charset: true,
@@ -104,20 +294,35 @@ struct Index {
       const compiled: SassCompileResponse = DartSassRuntime.parseResponse(payload);
       if (compiled.ok) {
         this.result = compiled.css ?? '';
+        this.showSuccessfulOutput(
+          this.result,
+          compiled.warnings ?? [],
+          compiled.debugMessages ?? []
+        );
         this.sourceMapText = compiled.sourceMap ?? '';
         this.isSuccessful = true;
         this.statusMessage = this.successMessage(compiled);
       } else {
         this.sourceMapText = '';
-        this.showCompileError(compiled.error, compiled.warnings ?? []);
+        this.showCompileError(
+          compiled.error,
+          compiled.warnings ?? [],
+          compiled.debugMessages ?? []
+        );
       }
     } catch (error) {
       this.result = '';
+      this.displayResult = (error as Error).message;
       this.sourceMapText = '';
+      this.diagnosticCount = 0;
       this.isSuccessful = false;
       this.statusMessage = '编译失败 · ' + (error as Error).message;
     } finally {
       this.isCompiling = false;
+      if (this.compilePending) {
+        this.compilePending = false;
+        this.compile();
+      }
     }
   }
 
@@ -129,24 +334,85 @@ struct Index {
       return `编译成功 · Dart Sass ${compiled.version} · 已载入 ${loadedCount} 个文件`;
     }
     if (warnings.length > 0) {
-      return `编译成功 · ${warnings.length} 条警告 · ${warnings[0].message}`;
+      return `编译成功 · ${warnings.length} 条警告 · 完整内容已显示在输出区`;
     }
-    return `编译成功 · ${debugCount} 条调试信息 · ${compiled.debugMessages?.[0].message}`;
+    return `编译成功 · ${debugCount} 条调试信息 · 完整内容已显示在输出区`;
   }
 
-  private showCompileError(error: SassCompileError | undefined, warnings: SassWarning[]): void {
+  private showSuccessfulOutput(
+    css: string,
+    warnings: SassWarning[],
+    debugMessages: SassDebugMessage[]
+  ): void {
+    const diagnostics: string = this.formatDiagnostics(warnings, debugMessages);
+    this.diagnosticCount = warnings.length + debugMessages.length;
+    this.displayResult = diagnostics.length > 0
+      ? `${css}\n\n----- Sass 诊断 -----\n${diagnostics}`
+      : css;
+  }
+
+  private showCompileError(
+    error: SassCompileError | undefined,
+    warnings: SassWarning[],
+    debugMessages: SassDebugMessage[]
+  ): void {
     this.isSuccessful = false;
+    this.result = '';
+    this.diagnosticCount = warnings.length + debugMessages.length;
     if (error === undefined) {
-      this.result = '';
+      this.displayResult = this.formatDiagnostics(warnings, debugMessages);
       this.statusMessage = '编译失败 · Dart Sass 未返回错误详情。';
       return;
     }
-    this.result = error.formatted;
+    const diagnostics: string = this.formatDiagnostics(warnings, debugMessages);
+    this.displayResult = diagnostics.length > 0
+      ? `${error.formatted}\n\n----- Sass 诊断 -----\n${diagnostics}`
+      : error.formatted;
     const location: string = error.line > 0
       ? `（第 ${error.line} 行，第 ${error.column} 列）`
       : '';
     const warningText: string = warnings.length > 0 ? ` · ${warnings.length} 条警告` : '';
     this.statusMessage = `编译失败 ${location}· ${error.message}${warningText}`;
+  }
+
+  private formatDiagnostics(
+    warnings: SassWarning[],
+    debugMessages: SassDebugMessage[]
+  ): string {
+    const messages: string[] = [];
+    for (const warning of warnings) {
+      const type: string = warning.deprecation
+        ? warning.deprecationType !== undefined
+          ? `弃用警告 ${warning.deprecationType}`
+          : '弃用警告'
+        : '警告';
+      let message: string = `[${type}] ${warning.message}`;
+      const location: string = this.formatDiagnosticLocation(warning.span);
+      if (location.length > 0) {
+        message += `\n${location}`;
+      }
+      if (warning.stack !== undefined && warning.stack.length > 0) {
+        message += `\n${warning.stack}`;
+      }
+      messages.push(message);
+    }
+    for (const debugMessage of debugMessages) {
+      let message: string = `[@debug] ${debugMessage.message}`;
+      const location: string = this.formatDiagnosticLocation(debugMessage.span);
+      if (location.length > 0) {
+        message += `\n${location}`;
+      }
+      messages.push(message);
+    }
+    return messages.join('\n\n');
+  }
+
+  private formatDiagnosticLocation(span: SassSourceSpan | undefined): string {
+    if (span === undefined) {
+      return '';
+    }
+    const path: string = span.url.replace('harmony-sass:/', '');
+    return `位置：${path}:${span.start.line}:${span.start.column}`;
   }
 
   private loadPaths(): string[] {
@@ -232,6 +498,7 @@ struct Index {
     this.isCheckingFiles = true;
     const changedPaths: string[] = [];
     const conflictPaths: string[] = [];
+    const unavailablePaths: string[] = [];
     try {
       const observedFiles: SassEditorFile[] = this.files.slice();
       for (const file of observedFiles) {
@@ -240,10 +507,14 @@ struct Index {
         }
         try {
           const signature: string = await this.fileSignature(file.uri);
+          const previous: string | undefined = this.fileSignatures.get(file.uri);
           if (signature.length === 0) {
+            if (previous !== undefined && previous.length > 0) {
+              unavailablePaths.push(file.path);
+            }
+            this.fileSignatures.set(file.uri, '');
             continue;
           }
-          const previous: string | undefined = this.fileSignatures.get(file.uri);
           this.fileSignatures.set(file.uri, signature);
           if (previous === undefined || previous === signature) {
             continue;
@@ -265,6 +536,12 @@ struct Index {
       this.isCheckingFiles = false;
     }
 
+    if (unavailablePaths.length > 0) {
+      this.isSuccessful = false;
+      this.statusMessage =
+        `项目文件已删除或无法访问 · ${unavailablePaths[0]} · 请重新载入项目`;
+      return;
+    }
     if (conflictPaths.length > 0) {
       this.isSuccessful = false;
       this.statusMessage = `检测到外部修改冲突 · ${conflictPaths[0]} 尚未保存`;
@@ -310,6 +587,7 @@ struct Index {
     this.syntax = file.syntax;
     this.statusMessage = `当前入口 · ${file.path}`;
     this.isSuccessful = true;
+    this.scheduleSessionSave();
     this.scheduleCompile();
   }
 
@@ -332,12 +610,15 @@ struct Index {
       this.source = file.contents;
       this.syntax = file.syntax;
       this.result = '';
+      this.displayResult = '';
       this.sourceMapText = '';
+      this.diagnosticCount = 0;
       this.dirtyPaths.clear();
       this.fileSignatures.clear();
       await this.rememberFileSignatures();
       this.statusMessage = `已打开 · ${file.path}`;
       this.isSuccessful = true;
+      this.scheduleSessionSave();
       this.scheduleCompile();
     } catch (error) {
       this.showActionError('打开失败', error);
@@ -346,14 +627,34 @@ struct Index {
 
   private async addProjectFiles(): Promise<void> {
     try {
-      const uris: string[] = await this.selectDocuments(500);
+      const selectedUris: string[] = await this.selectDocuments(500, true);
+      const uris: string[] = await this.expandProjectUris(selectedUris);
       if (uris.length === 0) {
         return;
       }
       this.syncActiveSource();
+      const currentFiles: SassEditorFile[] = SassProject.withoutUntouchedPlaceholder(
+        this.files,
+        SAMPLE_FILE.path,
+        SAMPLE_FILE.contents,
+        Array.from(this.dirtyPaths)
+      );
+      const existingUris: string[] = SassProject.uniqueUris(
+        currentFiles.map((file: SassEditorFile): string => file.uri)
+      );
+      const combinedUris: string[] = SassProject.uniqueUris(existingUris.concat(uris));
+      let virtualFileCount: number = 0;
+      for (const file of currentFiles) {
+        if (file.uri.length === 0) {
+          virtualFileCount++;
+        }
+      }
+      if (combinedUris.length + virtualFileCount > MAX_PROJECT_FILES) {
+        throw new Error(`项目最多支持 ${MAX_PROJECT_FILES} 个 Sass/CSS 文件。`);
+      }
       const dirtyUris: Set<string> = new Set<string>();
       const dirtyVirtualPaths: Set<string> = new Set<string>();
-      for (const file of this.files) {
+      for (const file of currentFiles) {
         if (!this.dirtyPaths.has(file.path)) {
           continue;
         }
@@ -375,7 +676,7 @@ struct Index {
         });
       }
       const activeUri: string = this.activeFile().uri;
-      this.files = SassProject.rebaseUriFiles(SassProject.mergeFiles(this.files, incoming));
+      this.files = SassProject.rebaseUriFiles(SassProject.mergeFiles(currentFiles, incoming));
       const rebasedDirtyPaths: Set<string> = new Set<string>();
       for (const file of this.files) {
         if ((file.uri.length > 0 && dirtyUris.has(file.uri)) ||
@@ -397,13 +698,17 @@ struct Index {
       this.statusMessage = `已载入项目 · 共 ${this.files.length} 个 Sass/CSS 文件`;
       this.isSuccessful = true;
       await this.rememberFileSignatures();
+      this.scheduleSessionSave();
       this.scheduleCompile();
     } catch (error) {
       this.showActionError('载入项目失败', error);
     }
   }
 
-  private async selectDocuments(maxSelectNumber: number): Promise<string[]> {
+  private async selectDocuments(
+    maxSelectNumber: number,
+    allowFolders: boolean = false
+  ): Promise<string[]> {
     const context = this.getUIContext().getHostContext();
     if (context === undefined) {
       throw new Error('无法获取当前窗口上下文。');
@@ -412,7 +717,76 @@ struct Index {
     const options: picker.DocumentSelectOptions = new picker.DocumentSelectOptions();
     options.fileSuffixFilters = ['Sass/CSS|.scss,.sass,.css'];
     options.maxSelectNumber = maxSelectNumber;
+    if (allowFolders) {
+      options.selectMode = picker.DocumentSelectMode.MIXED;
+    }
     return await documentPicker.select(options);
+  }
+
+  private async expandProjectUris(selectedUris: string[]): Promise<string[]> {
+    const expanded: string[] = [];
+    const seen: Set<string> = new Set<string>();
+    for (const uri of selectedUris) {
+      const stat: fileIo.Stat = await fileIo.stat(uri);
+      if (!stat.isDirectory()) {
+        if (!seen.has(uri)) {
+          seen.add(uri);
+          expanded.push(uri);
+        }
+        if (expanded.length > MAX_PROJECT_FILES) {
+          throw new Error(`一次最多载入 ${MAX_PROJECT_FILES} 个 Sass/CSS 文件。`);
+        }
+        continue;
+      }
+      let relativePaths: string[] = [];
+      try {
+        relativePaths = await fileIo.listFile(uri, {
+          recursion: true,
+          listNum: MAX_PROJECT_FILES + 1,
+          filter: {
+            suffix: ['.scss', '.sass', '.css']
+          }
+        });
+      } catch (error) {
+        throw new Error(
+          `系统未允许递归读取所选文件夹，请改用多选文件方式。${(error as Error).message}`
+        );
+      }
+      relativePaths.sort();
+      for (const relativePath of relativePaths) {
+        const normalized: string = SassProject.normalizePath(relativePath);
+        const lowerPath: string = normalized.toLowerCase();
+        if (lowerPath.endsWith('.scss') ||
+          lowerPath.endsWith('.sass') ||
+          lowerPath.endsWith('.css')) {
+          const childUri: string = this.joinDocumentUri(uri, normalized);
+          if (!seen.has(childUri)) {
+            seen.add(childUri);
+            expanded.push(childUri);
+          }
+          if (expanded.length > MAX_PROJECT_FILES) {
+            throw new Error(`一次最多载入 ${MAX_PROJECT_FILES} 个 Sass/CSS 文件。`);
+          }
+        }
+      }
+    }
+    return expanded;
+  }
+
+  private joinDocumentUri(directoryUri: string, relativePath: string): string {
+    const root: string = directoryUri.endsWith('/')
+      ? directoryUri.slice(0, directoryUri.length - 1)
+      : directoryUri;
+    const encodedSegments: string[] = [];
+    for (const segment of SassProject.normalizePath(relativePath).split('/')) {
+      let decoded: string = segment;
+      try {
+        decoded = decodeURIComponent(segment);
+      } catch (_) {
+      }
+      encodedSegments.push(encodeURIComponent(decoded));
+    }
+    return `${root}/${encodedSegments.join('/')}`;
   }
 
   private async saveSource(forcePicker: boolean = false): Promise<void> {
@@ -433,6 +807,7 @@ struct Index {
         await this.refreshFileSignature(uri);
         this.statusMessage = `已另存为 · ${this.activePath}`;
         this.isSuccessful = true;
+        this.scheduleSessionSave();
         return;
       }
 
@@ -460,24 +835,41 @@ struct Index {
         ? `已保存全部修改 · ${savedCount} 个文件`
         : `已保存 · ${this.activePath}`;
       this.isSuccessful = true;
+      this.scheduleSessionSave();
     } catch (error) {
       this.showActionError('保存失败', error);
     }
   }
 
   private async exportCss(): Promise<void> {
-    if (this.result.length === 0 || !this.isSuccessful) {
-      this.statusMessage = '没有可导出的 CSS，请先成功编译。';
+    if (!this.runtimeReady) {
+      this.statusMessage = 'Dart Sass 编译器尚未初始化完成。';
       this.isSuccessful = false;
       return;
     }
     try {
-      const uri: string = await this.chooseSaveUri(this.outputFileName('.css'), 'CSS|.css');
-      if (uri.length === 0) {
+      const compiled: SassBatchCompileResponse = await this.compileProjectEntries(false);
+      if (!compiled.ok) {
+        this.showBatchCompileErrors(compiled);
         return;
       }
-      await this.writeText(uri, this.result);
-      this.statusMessage = `CSS 已导出 · ${this.outputFileName('.css')}`;
+      const entryPaths: string[] = compiled.results.map(
+        (entry: SassBatchCompileResult): string => entry.entryPath
+      );
+      const fileNames: string[] = SassProject.outputFileNames(entryPaths, '.css');
+      const uris: string[] = await this.chooseSaveUris(fileNames, 'CSS|.css');
+      if (uris.length === 0) {
+        return;
+      }
+      if (uris.length !== compiled.results.length) {
+        throw new Error('系统返回的保存位置数量与编译入口数量不一致。');
+      }
+      for (let index: number = 0; index < compiled.results.length; index++) {
+        await this.writeText(uris[index], compiled.results[index].css ?? '');
+      }
+      this.statusMessage = compiled.results.length > 1
+        ? `CSS 已批量导出 · ${compiled.results.length} 个入口`
+        : `CSS 已导出 · ${fileNames[0]}`;
       this.isSuccessful = true;
     } catch (error) {
       this.showActionError('导出 CSS 失败', error);
@@ -485,35 +877,113 @@ struct Index {
   }
 
   private async exportSourceMap(): Promise<void> {
-    if (!this.sourceMapEnabled || this.sourceMapText.length === 0) {
-      this.statusMessage = '没有可导出的 Source Map，请启用后重新编译。';
+    if (!this.sourceMapEnabled) {
+      this.statusMessage = '请先启用 Source Map。';
       this.isSuccessful = false;
       return;
     }
     try {
-      const uri: string = await this.chooseSaveUri(this.outputFileName('.css.map'), 'Source Map|.map');
-      if (uri.length === 0) {
+      const compiled: SassBatchCompileResponse = await this.compileProjectEntries(true);
+      if (!compiled.ok) {
+        this.showBatchCompileErrors(compiled);
         return;
       }
-      await this.writeText(uri, this.sourceMapText);
-      this.statusMessage = `Source Map 已导出 · ${this.outputFileName('.css.map')}`;
+      const entryPaths: string[] = compiled.results.map(
+        (entry: SassBatchCompileResult): string => entry.entryPath
+      );
+      const fileNames: string[] = SassProject.outputFileNames(entryPaths, '.css.map');
+      const uris: string[] = await this.chooseSaveUris(fileNames, 'Source Map|.map');
+      if (uris.length === 0) {
+        return;
+      }
+      if (uris.length !== compiled.results.length) {
+        throw new Error('系统返回的保存位置数量与编译入口数量不一致。');
+      }
+      for (let index: number = 0; index < compiled.results.length; index++) {
+        await this.writeText(uris[index], compiled.results[index].sourceMap ?? '');
+      }
+      this.statusMessage = compiled.results.length > 1
+        ? `Source Map 已批量导出 · ${compiled.results.length} 个入口`
+        : `Source Map 已导出 · ${fileNames[0]}`;
       this.isSuccessful = true;
     } catch (error) {
       this.showActionError('导出 Source Map 失败', error);
     }
   }
 
+  private async compileProjectEntries(sourceMap: boolean): Promise<SassBatchCompileResponse> {
+    this.syncActiveSource();
+    const entryPaths: string[] = SassProject.entryPaths(this.files, this.activePath);
+    const request: SassBatchCompileRequest = {
+      entryPaths,
+      files: SassProject.compilerFiles(this.files, ''),
+      loadPaths: this.loadPaths(),
+      style: this.outputStyle,
+      alertAscii: false,
+      alertColor: false,
+      sourceMap,
+      sourceMapIncludeSources: true,
+      charset: true,
+      quietDeps: false,
+      verbose: false,
+      fatalDeprecations: [],
+      futureDeprecations: [],
+      silenceDeprecations: []
+    };
+    const script: string = DartSassRuntime.createBatchCompileScript(request);
+    const payload: string = await this.controller.runJavaScript(script);
+    return DartSassRuntime.parseBatchResponse(payload);
+  }
+
+  private showBatchCompileErrors(compiled: SassBatchCompileResponse): void {
+    const messages: string[] = [];
+    let diagnosticCount: number = 0;
+    for (const entry of compiled.results) {
+      if (entry.ok) {
+        continue;
+      }
+      const errorText: string = entry.error?.formatted ??
+        entry.error?.message ??
+        'Dart Sass 未返回错误详情。';
+      const diagnostics: string = this.formatDiagnostics(
+        entry.warnings ?? [],
+        entry.debugMessages ?? []
+      );
+      diagnosticCount += (entry.warnings?.length ?? 0) +
+        (entry.debugMessages?.length ?? 0);
+      messages.push(
+        diagnostics.length > 0
+          ? `===== ${entry.entryPath} =====\n${errorText}\n\n${diagnostics}`
+          : `===== ${entry.entryPath} =====\n${errorText}`
+      );
+    }
+    this.result = '';
+    this.sourceMapText = '';
+    this.diagnosticCount = diagnosticCount;
+    this.displayResult = messages.join('\n\n');
+    this.isSuccessful = false;
+    const failedCount: number = messages.length;
+    this.statusMessage = `批量编译失败 · ${failedCount} 个入口存在错误`;
+  }
+
   private async chooseSaveUri(fileName: string, suffixChoice: string): Promise<string> {
+    const uris: string[] = await this.chooseSaveUris([fileName], suffixChoice);
+    return uris.length > 0 ? uris[0] : '';
+  }
+
+  private async chooseSaveUris(
+    fileNames: string[],
+    suffixChoice: string
+  ): Promise<string[]> {
     const context = this.getUIContext().getHostContext();
     if (context === undefined) {
       throw new Error('无法获取当前窗口上下文。');
     }
     const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
     const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
-    options.newFileNames = [fileName];
+    options.newFileNames = fileNames;
     options.fileSuffixChoices = [suffixChoice];
-    const uris: string[] = await documentPicker.save(options);
-    return uris.length > 0 ? uris[0] : '';
+    return await documentPicker.save(options);
   }
 
   private async writeText(uri: string, text: string): Promise<void> {
@@ -555,24 +1025,20 @@ struct Index {
     }
   }
 
-  private outputFileName(suffix: string): string {
-    const name: string = this.activePath.split('/').pop() ?? 'output.scss';
-    const dotIndex: number = name.lastIndexOf('.');
-    const stem: string = dotIndex > 0 ? name.slice(0, dotIndex) : name;
-    return stem + suffix;
-  }
-
   private loadSample(): void {
     this.files = [SAMPLE_FILE];
     this.activePath = SAMPLE_FILE.path;
     this.source = SAMPLE_SCSS;
     this.syntax = 'scss';
     this.result = '';
+    this.displayResult = '';
     this.sourceMapText = '';
+    this.diagnosticCount = 0;
     this.dirtyPaths.clear();
     this.fileSignatures.clear();
     this.statusMessage = '已载入示例。';
     this.isSuccessful = true;
+    this.scheduleSessionSave();
     this.compile();
   }
 
@@ -641,6 +1107,8 @@ struct Index {
             .selected(this.syntax === 'indented' ? 1 : this.syntax === 'css' ? 2 : 0)
             .onSelect((index: number): void => {
               this.syntax = index === 1 ? 'indented' : index === 2 ? 'css' : 'scss';
+              this.files = SassProject.updateSyntax(this.files, this.activePath, this.syntax);
+              this.scheduleSessionSave();
               this.scheduleCompile();
             })
             .width(92).height(32)
@@ -649,12 +1117,14 @@ struct Index {
             .selected(this.outputStyle === 'compressed' ? 1 : 0)
             .onSelect((index: number): void => {
               this.outputStyle = index === 1 ? 'compressed' : 'expanded';
+              this.scheduleSessionSave();
               this.scheduleCompile();
             })
             .width(92).height(32)
           TextInput({ text: this.loadPathsText, placeholder: '载入路径，用逗号分隔' })
             .onChange((value: string): void => {
               this.loadPathsText = value;
+              this.scheduleSessionSave();
               this.scheduleCompile();
             })
             .width(210).height(32).fontSize(13)
@@ -662,6 +1132,7 @@ struct Index {
           Toggle({ type: ToggleType.Switch, isOn: this.sourceMapEnabled })
             .onChange((isOn: boolean): void => {
               this.sourceMapEnabled = isOn;
+              this.scheduleSessionSave();
               this.scheduleCompile();
             })
           Text('自动编译').fontSize(13).fontColor('#667085')
@@ -674,6 +1145,7 @@ struct Index {
               } else {
                 this.stopFileWatch();
               }
+              this.scheduleSessionSave();
             })
           Blank().layoutWeight(1)
           Text(`${this.files.length} 个文件`).fontSize(13).fontColor('#667085')
@@ -700,9 +1172,13 @@ struct Index {
           }.alignItems(HorizontalAlign.Start).layoutWeight(1).height('100%')
 
           Column({ space: 10 }) {
-            Text(this.isSuccessful ? 'CSS 输出' : '编译错误')
+            Text(this.isSuccessful
+              ? this.diagnosticCount > 0
+                ? `CSS 输出 · ${this.diagnosticCount} 条诊断`
+                : 'CSS 输出'
+              : '编译错误')
               .fontWeight(FontWeight.Medium).fontColor('#344054')
-            TextArea({ text: this.result, placeholder: '编译结果将显示在这里' })
+            TextArea({ text: this.displayResult, placeholder: '编译结果将显示在这里' })
               .layoutWeight(1).width('100%').fontSize(15).fontFamily('monospace')
               .backgroundColor('#F9FAFB').border({ width: 1, color: '#D0D5DD', radius: 8 })
               .enabled(false)

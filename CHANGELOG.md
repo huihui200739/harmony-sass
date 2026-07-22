@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## 0.5.0 - 2026-07-22
+
+- Corrected virtual importer precedence to match official Dart Sass for direct
+  files, directory indexes, Sass syntax files, CSS fallbacks, partials,
+  explicit extensions and import-only stylesheets.
+- Added official package comparisons for importer edge cases and ambiguity
+  handling.
+- Added recursive mixed file/folder project loading with URI deduplication and
+  a global 500-file limit.
+- Removed the untouched built-in example automatically when a real project is
+  loaded while preserving edited untitled content.
+- Added session restoration for authorized project files, the active file,
+  per-file syntax overrides, output format, load paths, Source Maps and
+  automatic compilation.
+- Added batched CSS and Source Map export with collision-resistant output names.
+- Added queued automatic compilation, full warning/debug presentation and
+  deleted-file detection.
+- Documented Node.js callback, package importer, Embedded Protocol, CLI,
+  target-device and signing boundaries.
+
 ## 0.4.0 - 2026-07-22
 
 - Added official Dart Sass deprecation controls to the ArkWeb runtime bridge.

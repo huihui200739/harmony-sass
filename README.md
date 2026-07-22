@@ -15,8 +15,10 @@ than a rewritten or reduced compiler.
   control flow, arithmetic, at-rules and built-in `sass:*` modules
 - Multi-file virtual projects with up to 500 selected `.scss`, `.sass` or
   `.css` files
+- Mixed file and folder selection with recursive Sass/CSS discovery
 - Relative `@use`, `@forward` and legacy `@import`
-- Sass partials, directory `_index` files and import-only `.import.scss` files
+- Official-compatible file resolution for Sass files, CSS fallbacks, partials,
+  directory `_index` files and import-only `.import.scss` files
 - Configurable virtual load paths
 - SCSS, indented Sass and CSS input syntax
 - Expanded and compressed CSS output
@@ -30,6 +32,8 @@ than a rewritten or reduced compiler.
 - Structured errors, warnings, deprecation IDs, Sass stacks and `@debug`
   messages
 - Runtime batch compilation for multiple project entry stylesheets
+- Session restoration for authorized project files, active file, per-file
+  syntax and compiler options
 - PC shortcuts: `Ctrl+O`, `Ctrl+S`, `Ctrl+Shift+S` and `Ctrl+Enter`
 - No network service and no remote compilation
 
@@ -43,6 +47,11 @@ entry from the file selector.
 All project files are passed to an in-memory Dart Sass importer. The official
 compiler therefore resolves project imports without uploading source code or
 requiring filesystem access from ArkWeb.
+
+An untouched built-in example is removed automatically when a real project is
+loaded. Edited untitled content is retained. Project selections are
+deduplicated and limited to 500 Sass/CSS files across all selected files and
+folders.
 
 ## Upstream source
 
@@ -100,7 +109,31 @@ npm --prefix tools run verify
 Fixtures cover single-document Sass behavior and project workflows including
 partials, modules, forwarding, legacy imports, output styles, input syntaxes,
 Source Maps, loaded URLs, batch entries, debug messages, deprecation controls,
-warnings and structured errors.
+warnings and structured errors. Importer fixtures also compare file-versus-index
+precedence, Sass-versus-CSS precedence, explicit extensions and ambiguity
+handling with the pinned official package.
+
+## Runtime boundaries
+
+Harmony Sass reproduces Dart Sass language compilation and the editor workflows
+that can be implemented faithfully in an offline HarmonyOS application. The
+following host integration APIs are not exposed because ArkWeb's JSON bridge
+cannot transfer JavaScript callback objects or provide a Node.js process and
+filesystem:
+
+- host-defined JavaScript custom functions passed through `Options.functions`;
+- arbitrary JavaScript `Importer` and `FileImporter` callbacks;
+- `NodePackageImporter`, `pkg:` URLs, `node_modules` lookup and package exports;
+- the Dart Sass Embedded Protocol;
+- the complete command-line process contract, including stdin/stdout, directory
+  mappings, every CLI flag and CLI watch mode.
+
+Sass functions declared with `@function`, built-in functions and all built-in
+`sass:*` modules are supported by the official compiler.
+
+Recursive folder selection depends on HarmonyOS document-provider behavior.
+It builds and is covered by project-model tests, but still requires validation
+on the target HarmonyOS PC and document provider.
 
 ## Licensing
 

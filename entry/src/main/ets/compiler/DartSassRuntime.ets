@@ -45,6 +45,8 @@ export interface SassCompileRequest {
   loadPaths: string[];
   syntax: string;
   style: string;
+  alertAscii: boolean;
+  alertColor: boolean;
   sourceMap: boolean;
   sourceMapIncludeSources: boolean;
   charset: boolean;
@@ -71,6 +73,8 @@ export interface SassBatchCompileRequest {
   files: SassProjectFile[];
   loadPaths: string[];
   style: string;
+  alertAscii: boolean;
+  alertColor: boolean;
   sourceMap: boolean;
   sourceMapIncludeSources: boolean;
   charset: boolean;
@@ -100,6 +104,8 @@ export class DartSassRuntime {
       loadPaths: [],
       syntax: 'scss',
       style: 'expanded',
+      alertAscii: false,
+      alertColor: false,
       sourceMap: false,
       sourceMapIncludeSources: true,
       charset: true,

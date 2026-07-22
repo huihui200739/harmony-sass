@@ -79,34 +79,41 @@ function pathFromVirtualUrl(url) {
   return normalizePath(url.pathname);
 }
 
-function candidatePaths(requestedPath, fromImport) {
-  const normalized = normalizePath(requestedPath);
-  const extensionMatch = normalized.match(/\.(scss|sass|css)$/);
-  const extension = extensionMatch ? extensionMatch[0] : '';
-  const stem = extension ? normalized.slice(0, -extension.length) : normalized;
-  const extensions = extension ? [extension] : ['.scss', '.sass', '.css'];
-  const candidates = [];
-
-  for (const currentExtension of extensions) {
-    if (fromImport && currentExtension !== '.css') {
-      candidates.push(`${stem}.import${currentExtension}`);
-      candidates.push(partialPath(`${stem}.import${currentExtension}`));
+function matchingPaths(files, stem, extensions, importOnly) {
+  const matches = [];
+  for (const extension of extensions) {
+    if (importOnly && extension === '.css') continue;
+    const path = `${stem}${importOnly ? '.import' : ''}${extension}`;
+    for (const candidate of [path, partialPath(path)]) {
+      const normalized = normalizePath(candidate);
+      if (files.has(normalized) && !matches.includes(normalized)) {
+        matches.push(normalized);
+      }
     }
-    candidates.push(`${stem}${currentExtension}`);
-    candidates.push(partialPath(`${stem}${currentExtension}`));
   }
+  if (matches.length > 1) {
+    throw new Error(
+      `Ambiguous stylesheet "${stem}". Found: ${matches.join(', ')}`
+    );
+  }
+  return matches[0] || null;
+}
 
-  for (const currentExtension of extensions) {
-    const indexStem = joinPath(stem, 'index');
-    if (fromImport && currentExtension !== '.css') {
-      candidates.push(`${indexStem}.import${currentExtension}`);
-      candidates.push(partialPath(`${indexStem}.import${currentExtension}`));
+function resolveStem(files, stem, extension, fromImport) {
+  const extensionGroups = extension
+    ? [[extension]]
+    : [['.sass', '.scss'], ['.css']];
+  if (fromImport) {
+    for (const extensions of extensionGroups) {
+      const resolved = matchingPaths(files, stem, extensions, true);
+      if (resolved) return resolved;
     }
-    candidates.push(`${indexStem}${currentExtension}`);
-    candidates.push(partialPath(`${indexStem}${currentExtension}`));
   }
-
-  return [...new Set(candidates.map(normalizePath))];
+  for (const extensions of extensionGroups) {
+    const resolved = matchingPaths(files, stem, extensions, false);
+    if (resolved) return resolved;
+  }
+  return null;
 }
 
 function serializeSpan(span) {
@@ -158,6 +165,8 @@ function normalizeRequest(value) {
     loadPaths: Array.isArray(request.loadPaths) ? request.loadPaths : [],
     syntax,
     style,
+    alertAscii: request.alertAscii === true,
+    alertColor: request.alertColor === true,
     sourceMap: request.sourceMap === true,
     sourceMapIncludeSources: request.sourceMapIncludeSources !== false,
     charset: request.charset !== false,
@@ -188,20 +197,13 @@ function createProject(request) {
 }
 
 function resolveCandidate(files, requestedPath, fromImport) {
-  let matches = candidatePaths(requestedPath, fromImport)
-    .filter(path => files.has(path));
-  if (fromImport) {
-    const importOnlyMatches = matches.filter(
-      path => /\.import\.(scss|sass)$/.test(path)
-    );
-    if (importOnlyMatches.length > 0) matches = importOnlyMatches;
-  }
-  if (matches.length > 1) {
-    throw new Error(
-      `Ambiguous stylesheet "${requestedPath}". Found: ${matches.join(', ')}`
-    );
-  }
-  return matches[0] || null;
+  const normalized = normalizePath(requestedPath);
+  const extensionMatch = normalized.match(/\.(scss|sass|css)$/);
+  const extension = extensionMatch ? extensionMatch[0] : '';
+  const stem = extension ? normalized.slice(0, -extension.length) : normalized;
+  const direct = resolveStem(files, stem, extension, fromImport);
+  if (direct || extension) return direct;
+  return resolveStem(files, joinPath(stem, 'index'), '', fromImport);
 }
 
 function createImporter(files, loadPaths) {
@@ -212,7 +214,9 @@ function createImporter(files, loadPaths) {
 
       const roots = [];
       if (url.startsWith(VIRTUAL_SCHEME)) {
-        roots.push(pathFromVirtualUrl(new URL(url)));
+        const path = pathFromVirtualUrl(new URL(url));
+        if (files.has(path)) return virtualUrl(path);
+        roots.push(path);
       } else if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
         return null;
       } else if (
@@ -222,6 +226,9 @@ function createImporter(files, loadPaths) {
         roots.push(
           joinPath(dirname(pathFromVirtualUrl(context.containingUrl)), url)
         );
+        for (const loadPath of normalizedLoadPaths) {
+          roots.push(joinPath(loadPath, url));
+        }
       } else {
         roots.push(normalizePath(url));
         for (const loadPath of normalizedLoadPaths) {
@@ -262,6 +269,8 @@ function compileProjectResult(value) {
       url: virtualUrl(request.entryPath),
       syntax: request.syntax,
       style: request.style,
+      alertAscii: request.alertAscii,
+      alertColor: request.alertColor,
       sourceMap: request.sourceMap,
       sourceMapIncludeSources: request.sourceMapIncludeSources,
       charset: request.charset,

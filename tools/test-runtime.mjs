@@ -1,7 +1,15 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile
+} from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import * as sass from 'sass';
 
@@ -28,6 +36,23 @@ context.self = context;
 context.window = context;
 vm.createContext(context);
 vm.runInContext(runtimeSource, context);
+
+async function officialProjectCss(source, files) {
+  const root = await mkdtemp(resolve(tmpdir(), 'harmony-sass-reference-'));
+  try {
+    for (const file of files) {
+      const filePath = resolve(root, file.path);
+      await mkdir(dirname(filePath), { recursive: true });
+      await writeFile(filePath, file.contents);
+    }
+    return sass.compileString(source, {
+      url: pathToFileURL(resolve(root, 'app.scss')),
+      logger: sass.Logger.silent
+    }).css;
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
 
 const fixtures = [
   {
@@ -157,6 +182,121 @@ assert.deepEqual(
   JSON.parse(sourceMap.sourceMap).sources.sort(),
   ['harmony-sass:/src/_tokens.scss', 'harmony-sass:/src/app.scss'].sort()
 );
+
+const loadPathProject = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "tokens"; .app { color: tokens.$brand; }',
+  entryPath: 'src/app.scss',
+  loadPaths: ['shared'],
+  files: [{
+    path: 'shared/_tokens.scss',
+    contents: '$brand: #0a7bff;'
+  }]
+}));
+assert.equal(loadPathProject.ok, true, 'entry imports should search virtual load paths');
+assert.match(loadPathProject.css, /#0a7bff/);
+
+const nestedLoadPathProject = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "components/button";',
+  entryPath: 'src/app.scss',
+  loadPaths: ['shared'],
+  files: [
+    {
+      path: 'src/components/_button.scss',
+      contents: '@use "tokens"; .button { color: tokens.$brand; }'
+    },
+    {
+      path: 'shared/_tokens.scss',
+      contents: '$brand: rebeccapurple;'
+    }
+  ]
+}));
+assert.equal(
+  nestedLoadPathProject.ok,
+  true,
+  'nested imports should search virtual load paths after the containing directory'
+);
+assert.match(nestedLoadPathProject.css, /rebeccapurple/);
+
+const relativeBeforeLoadPath = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "tokens"; .app { color: tokens.$brand; }',
+  entryPath: 'src/app.scss',
+  loadPaths: ['shared'],
+  files: [
+    { path: 'src/_tokens.scss', contents: '$brand: red;' },
+    { path: 'shared/_tokens.scss', contents: '$brand: blue;' }
+  ]
+}));
+assert.equal(relativeBeforeLoadPath.ok, true);
+assert.match(relativeBeforeLoadPath.css, /red/);
+assert.doesNotMatch(relativeBeforeLoadPath.css, /blue/);
+
+const indexFiles = [{
+  path: 'theme/_index.scss',
+  contents: '.theme { color: teal; }'
+}];
+const indexProject = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "theme";',
+  entryPath: 'app.scss',
+  files: indexFiles
+}));
+assert.equal(indexProject.ok, true, 'directory partial indexes should resolve');
+assert.equal(
+  indexProject.css,
+  await officialProjectCss('@use "theme";', indexFiles)
+);
+
+const directBeforeIndexFiles = [
+  { path: 'theme.scss', contents: '.direct { color: red; }' },
+  { path: 'theme/_index.scss', contents: '.index { color: blue; }' }
+];
+const directBeforeIndex = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "theme";',
+  entryPath: 'app.scss',
+  files: directBeforeIndexFiles
+}));
+assert.equal(directBeforeIndex.ok, true, 'direct files should resolve before indexes');
+assert.equal(
+  directBeforeIndex.css,
+  await officialProjectCss('@use "theme";', directBeforeIndexFiles)
+);
+
+const sassBeforeCssFiles = [
+  { path: 'theme.scss', contents: '.sass { color: red; }' },
+  { path: 'theme.css', contents: '.css { color: blue; }' }
+];
+const sassBeforeCss = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "theme";',
+  entryPath: 'app.scss',
+  files: sassBeforeCssFiles
+}));
+assert.equal(sassBeforeCss.ok, true, 'Sass files should resolve before CSS fallbacks');
+assert.equal(
+  sassBeforeCss.css,
+  await officialProjectCss('@use "theme";', sassBeforeCssFiles)
+);
+
+const ambiguousProject = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "theme";',
+  entryPath: 'app.scss',
+  files: [
+    { path: 'theme.scss', contents: '.direct { color: red; }' },
+    { path: '_theme.scss', contents: '.partial { color: blue; }' }
+  ]
+}));
+assert.equal(ambiguousProject.ok, false);
+assert.match(ambiguousProject.error.message, /Ambiguous stylesheet/);
+
+const explicitExtensionProject = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "theme.scss";',
+  entryPath: 'app.scss',
+  files: [
+    { path: 'theme.scss', contents: '.scss { color: red; }' },
+    { path: 'theme.sass', contents: '.sass\n  color: blue' }
+  ]
+}));
+assert.equal(explicitExtensionProject.ok, true);
+assert.match(explicitExtensionProject.css, /\.scss/);
+assert.doesNotMatch(explicitExtensionProject.css, /\.sass/);
 
 const warning = JSON.parse(context.harmonySass.compileProject({
   source: '@warn "check me"; .card { color: red; }'
