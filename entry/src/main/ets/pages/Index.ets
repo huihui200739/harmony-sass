@@ -5,6 +5,8 @@ import { KeyCode } from '@kit.InputKit';
 import { webview } from '@kit.ArkWeb';
 import {
   DartSassRuntime,
+  SassAsyncJobPollResponse,
+  SassAsyncJobStartResponse,
   SassBatchCompileRequest,
   SassBatchCompileResponse,
   SassBatchCompileResult,
@@ -289,7 +291,8 @@ struct Index {
       const metadata: SassRuntimeMetadata =
         DartSassRuntime.parseMetadata(payload);
       if (!metadata.info.startsWith('dart-sass\t') ||
-        metadata.version.length === 0) {
+        metadata.version.length === 0 ||
+        !metadata.compilerModes.includes('async')) {
         throw new Error('加载的编译器不是有效的 Dart Sass 运行时。');
       }
       this.runtimeVersion = metadata.version;
@@ -299,6 +302,38 @@ struct Index {
       this.isSuccessful = false;
       this.statusMessage = `Dart Sass 初始化失败 · ${(error as Error).message}`;
     }
+  }
+
+  private async waitForAsyncJob(startScript: string): Promise<string> {
+    const startPayload: string =
+      await this.controller.runJavaScript(startScript);
+    const started: SassAsyncJobStartResponse =
+      DartSassRuntime.parseAsyncJobStartResponse(startPayload);
+    if (started.jobId.length === 0) {
+      throw new Error('Dart Sass 未返回异步编译任务编号。');
+    }
+
+    const deadline: number = Date.now() + 120000;
+    while (Date.now() < deadline) {
+      const pollPayload: string = await this.controller.runJavaScript(
+        DartSassRuntime.createAsyncJobPollScript(started.jobId)
+      );
+      const polled: SassAsyncJobPollResponse =
+        DartSassRuntime.parseAsyncJobPollResponse(pollPayload);
+      if (polled.state === 'complete') {
+        if (polled.payload === undefined || polled.payload.length === 0) {
+          throw new Error('Dart Sass 异步编译未返回结果。');
+        }
+        return polled.payload;
+      }
+      if (polled.state !== 'pending') {
+        throw new Error(polled.message ?? 'Dart Sass 异步编译任务失败。');
+      }
+      await new Promise<void>((resolve: () => void): void => {
+        setTimeout((): void => resolve(), 8);
+      });
+    }
+    throw new Error('Dart Sass 异步编译超时。');
   }
 
   private async compileWithDartSass(): Promise<void> {
@@ -327,8 +362,9 @@ struct Index {
         futureDeprecations: [],
         silenceDeprecations: []
       };
-      const script: string = DartSassRuntime.createProjectCompileScript(request);
-      const payload: string = await this.controller.runJavaScript(script);
+      const script: string =
+        DartSassRuntime.createAsyncProjectCompileScript(request);
+      const payload: string = await this.waitForAsyncJob(script);
       const compiled: SassCompileResponse = DartSassRuntime.parseResponse(payload);
       if (compiled.ok) {
         this.result = compiled.css ?? '';
@@ -1063,8 +1099,9 @@ struct Index {
       futureDeprecations: [],
       silenceDeprecations: []
     };
-    const script: string = DartSassRuntime.createBatchCompileScript(request);
-    const payload: string = await this.controller.runJavaScript(script);
+    const script: string =
+      DartSassRuntime.createAsyncBatchCompileScript(request);
+    const payload: string = await this.waitForAsyncJob(script);
     return DartSassRuntime.parseBatchResponse(payload);
   }
 

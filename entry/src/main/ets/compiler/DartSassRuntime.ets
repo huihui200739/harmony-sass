@@ -144,7 +144,18 @@ export interface SassDeprecationMetadata {
 export interface SassRuntimeMetadata {
   version: string;
   info: string;
+  compilerModes: string[];
   deprecations: SassDeprecationMetadata[];
+}
+
+export interface SassAsyncJobStartResponse {
+  jobId: string;
+}
+
+export interface SassAsyncJobPollResponse {
+  state: string;
+  payload?: string;
+  message?: string;
 }
 
 export class DartSassRuntime {
@@ -183,6 +194,18 @@ export class DartSassRuntime {
     return `globalThis.harmonySass.compileBatch(${JSON.stringify(request)})`;
   }
 
+  static createAsyncProjectCompileScript(request: SassCompileRequest): string {
+    return `globalThis.harmonySass.startCompileProjectAsync(${JSON.stringify(request)})`;
+  }
+
+  static createAsyncBatchCompileScript(request: SassBatchCompileRequest): string {
+    return `globalThis.harmonySass.startCompileBatchAsync(${JSON.stringify(request)})`;
+  }
+
+  static createAsyncJobPollScript(jobId: string): string {
+    return `globalThis.harmonySass.pollAsyncJob(${JSON.stringify(jobId)})`;
+  }
+
   static createFinalizeExportsScript(request: SassExportFinalizeRequest): string {
     return `globalThis.harmonySass.finalizeExports(${JSON.stringify(request)})`;
   }
@@ -205,6 +228,24 @@ export class DartSassRuntime {
       JSON.parse(payload) as SassBatchCompileResponse | string;
     if (typeof decoded === 'string') {
       return JSON.parse(decoded) as SassBatchCompileResponse;
+    }
+    return decoded;
+  }
+
+  static parseAsyncJobStartResponse(payload: string): SassAsyncJobStartResponse {
+    const decoded: SassAsyncJobStartResponse | string =
+      JSON.parse(payload) as SassAsyncJobStartResponse | string;
+    if (typeof decoded === 'string') {
+      return JSON.parse(decoded) as SassAsyncJobStartResponse;
+    }
+    return decoded;
+  }
+
+  static parseAsyncJobPollResponse(payload: string): SassAsyncJobPollResponse {
+    const decoded: SassAsyncJobPollResponse | string =
+      JSON.parse(payload) as SassAsyncJobPollResponse | string;
+    if (typeof decoded === 'string') {
+      return JSON.parse(decoded) as SassAsyncJobPollResponse;
     }
     return decoded;
   }

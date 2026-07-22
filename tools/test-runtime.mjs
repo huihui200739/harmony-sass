@@ -44,6 +44,7 @@ vm.runInContext(runtimeSource, context);
 const runtimeMetadata = JSON.parse(context.harmonySass.getMetadata());
 assert.equal(runtimeMetadata.version, sassPackage.version);
 assert.equal(runtimeMetadata.info, sass.info);
+assert.deepEqual(runtimeMetadata.compilerModes, ['sync', 'async']);
 assert.deepEqual(
   runtimeMetadata.deprecations,
   Object.values(sass.deprecations).map(deprecation => ({
@@ -65,6 +66,36 @@ assert.deepEqual(
   })),
   'runtime metadata should match the pinned official Dart Sass package'
 );
+
+async function waitForRuntimeJob(startPayload) {
+  const started = JSON.parse(startPayload);
+  assert.ok(started.jobId, 'async runtime job should return an ID');
+  for (let attempt = 0; attempt < 10000; attempt++) {
+    const polled = JSON.parse(
+      context.harmonySass.pollAsyncJob(started.jobId)
+    );
+    if (polled.state === 'complete') return polled.payload;
+    if (polled.state !== 'pending') {
+      throw new Error(polled.message || `Async job entered ${polled.state}`);
+    }
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 0));
+  }
+  throw new Error('Async runtime job timed out.');
+}
+
+async function runtimeCompileProjectAsync(request) {
+  const payload = await waitForRuntimeJob(
+    context.harmonySass.startCompileProjectAsync(request)
+  );
+  return JSON.parse(payload);
+}
+
+async function runtimeCompileBatchAsync(request) {
+  const payload = await waitForRuntimeJob(
+    context.harmonySass.startCompileBatchAsync(request)
+  );
+  return JSON.parse(payload);
+}
 
 async function officialProjectCss(source, files) {
   const root = await mkdtemp(resolve(tmpdir(), 'harmony-sass-reference-'));
@@ -345,6 +376,27 @@ for (const fixture of fixtures) {
   assert.equal(actual.ok, true, `${fixture.name} should compile`);
   assert.equal(actual.css, expected, `${fixture.name} should match Dart Sass`);
   assert.equal(actual.version, sassPackage.version);
+
+  const asyncActual = await runtimeCompileProjectAsync({
+    source: fixture.source
+  });
+  const asyncExpected = await sass.compileStringAsync(fixture.source, {
+    syntax: 'scss',
+    style: 'expanded',
+    sourceMap: false,
+    url: new URL('harmony-sass:/stdin.scss')
+  });
+  assert.equal(asyncActual.ok, true, `${fixture.name} should compile async`);
+  assert.equal(
+    asyncActual.css,
+    asyncExpected.css,
+    `${fixture.name} async output should match Dart Sass`
+  );
+  assert.deepEqual(
+    asyncActual.loadedUrls,
+    asyncExpected.loadedUrls.map(url => String(url)),
+    `${fixture.name} async loaded URLs should match Dart Sass`
+  );
 }
 
 const project = JSON.parse(context.harmonySass.compileProject({
@@ -1439,6 +1491,27 @@ assert.equal(stoppedBatch.ok, false);
 assert.equal(stoppedBatch.results.length, 1);
 assert.equal(stoppedBatch.results[0].ok, false);
 assert.ok(stoppedBatch.results[0].errorCss.length > 0);
+
+const stoppedAsyncBatch = await runtimeCompileBatchAsync({
+  entryPaths: ['src/broken.scss', 'src/app.scss'],
+  stopOnError: true,
+  errorCss: true,
+  files: [
+    {
+      path: 'src/broken.scss',
+      contents: '.broken { color: $missing; }'
+    },
+    {
+      path: 'src/app.scss',
+      contents: '.app { color: blue; }'
+    }
+  ]
+});
+assert.deepEqual(
+  stoppedAsyncBatch,
+  stoppedBatch,
+  'async batch stop-on-error and Error CSS should match the sync bridge'
+);
 
 const errorCss = await compareCliErrorCss('@error "坏*/";');
 assert.equal(

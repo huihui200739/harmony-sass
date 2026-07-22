@@ -4,7 +4,10 @@
 
 - [x] Native HarmonyOS PC two-pane editor UI
 - [x] Official Dart Sass `1.101.3` browser runtime
-- [x] Official `sass.Compiler` reuse for the ArkWeb page lifecycle
+- [x] Official `sass.Compiler` and `sass.AsyncCompiler` reuse for the ArkWeb
+      page lifecycle
+- [x] Official `AsyncCompiler.compileStringAsync()` editor and batch workflows
+      with a compatible synchronous runtime bridge
 - [x] Official `sass.info` validation and complete deprecation metadata bridge
 - [x] SCSS, indented Sass and CSS input
 - [x] Complete Sass language semantics supplied by Dart Sass
@@ -50,8 +53,9 @@
 - [ ] Dart Sass Embedded Protocol
 - [ ] Complete Dart Sass CLI stdin/stdout, directory mapping, flags, watch and
       `--update` target/dependency timestamp graph
-- [ ] Asynchronous and file-entry npm compiler APIs, JavaScript callback/value
-      object APIs and the legacy JavaScript API surface
+- [ ] Filesystem file-entry npm APIs (`compile()` and `compileAsync()`),
+      JavaScript callback/value object APIs and the legacy JavaScript API
+      surface
 
 These items depend on a Node.js filesystem/process environment or callback
 objects that cannot cross the current ArkTS-to-ArkWeb JSON bridge. The portable

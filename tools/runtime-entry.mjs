@@ -4,6 +4,9 @@ const DART_SASS_INFO = sass.info;
 const DART_SASS_VERSION =
   DART_SASS_INFO.split('\n')[0].split('\t')[1] || '1.101.3';
 const compiler = sass.initCompiler();
+const asyncCompilerPromise = sass.initAsyncCompiler();
+const asyncJobs = new Map();
+let nextAsyncJobId = 1;
 const VIRTUAL_SCHEME = 'harmony-sass:';
 const SUPPORTED_SYNTAXES = new Set(['scss', 'indented', 'css']);
 const SUPPORTED_STYLES = new Set(['expanded', 'compressed']);
@@ -46,10 +49,16 @@ function compileString(source, options) {
   return compiler.compileString(source, options);
 }
 
+async function compileStringAsync(source, options) {
+  const asyncCompiler = await asyncCompilerPromise;
+  return asyncCompiler.compileStringAsync(source, options);
+}
+
 function runtimeMetadata() {
   return {
     version: DART_SASS_VERSION,
     info: DART_SASS_INFO,
+    compilerModes: ['sync', 'async'],
     deprecations: Object.values(sass.deprecations).map(deprecation => ({
       id: text(deprecation.id),
       status: text(deprecation.status),
@@ -897,9 +906,7 @@ function errorCssFor(request, files, fallbackError) {
     '}\n';
 }
 
-function compileProjectResult(value) {
-  const request = normalizeRequest(value);
-  const files = createProject(request);
+function createCompilationMessages(request) {
   const warnings = [];
   const debugMessages = [];
   const logger = request.quiet
@@ -923,30 +930,58 @@ function compileProjectResult(value) {
           });
         }
       };
+  return { warnings, debugMessages, logger };
+}
 
+function successfulCompileResponse(result, messages) {
+  return {
+    ok: true,
+    version: DART_SASS_VERSION,
+    css: result.css,
+    sourceMap: result.sourceMap ? JSON.stringify(result.sourceMap) : '',
+    loadedUrls: result.loadedUrls.map(url => text(url)),
+    warnings: messages.warnings,
+    debugMessages: messages.debugMessages
+  };
+}
+
+function failedCompileResponse(error, request, files, messages) {
+  const response = serializeError(error);
+  if (request.errorCss) {
+    response.errorCss = errorCssFor(request, files, error);
+  }
+  response.warnings = messages.warnings;
+  response.debugMessages = messages.debugMessages;
+  return response;
+}
+
+function compileProjectResult(value) {
+  const request = normalizeRequest(value);
+  const files = createProject(request);
+  const messages = createCompilationMessages(request);
   try {
     const result = compileString(
       request.source,
-      createCompileOptions(request, files, logger)
+      createCompileOptions(request, files, messages.logger)
     );
-
-    return {
-      ok: true,
-      version: DART_SASS_VERSION,
-      css: result.css,
-      sourceMap: result.sourceMap ? JSON.stringify(result.sourceMap) : '',
-      loadedUrls: result.loadedUrls.map(url => text(url)),
-      warnings,
-      debugMessages
-    };
+    return successfulCompileResponse(result, messages);
   } catch (error) {
-    const response = serializeError(error);
-    if (request.errorCss) {
-      response.errorCss = errorCssFor(request, files, error);
-    }
-    response.warnings = warnings;
-    response.debugMessages = debugMessages;
-    return response;
+    return failedCompileResponse(error, request, files, messages);
+  }
+}
+
+async function compileProjectResultAsync(value) {
+  const request = normalizeRequest(value);
+  const files = createProject(request);
+  const messages = createCompilationMessages(request);
+  try {
+    const result = await compileStringAsync(
+      request.source,
+      createCompileOptions(request, files, messages.logger)
+    );
+    return successfulCompileResponse(result, messages);
+  } catch (error) {
+    return failedCompileResponse(error, request, files, messages);
   }
 }
 
@@ -1006,6 +1041,104 @@ function compileBatch(value) {
     ok: results.length > 0 && results.every(result => result.ok),
     version: DART_SASS_VERSION,
     results
+  });
+}
+
+async function compileBatchResultAsync(value) {
+  const request = value && typeof value === 'object' ? value : {};
+  const files = Array.isArray(request.files) ? request.files : [];
+  const projectFiles = new Map();
+  for (const candidate of files) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const path = normalizePath(candidate.path);
+    if (!path) continue;
+    projectFiles.set(path, candidate);
+  }
+
+  const results = [];
+  const stopOnError = request.stopOnError === true;
+  for (const requestedPath of stringList(request.entryPaths)) {
+    const entryPath = normalizePath(requestedPath);
+    const entry = projectFiles.get(entryPath);
+    if (!entry) {
+      results.push({
+        entryPath,
+        ok: false,
+        version: DART_SASS_VERSION,
+        warnings: [],
+        debugMessages: [],
+        error: {
+          message: `Entry stylesheet "${entryPath}" was not found.`,
+          formatted: `Entry stylesheet "${entryPath}" was not found.`,
+          line: 0,
+          column: 0
+        }
+      });
+      if (stopOnError) break;
+      continue;
+    }
+
+    results.push({
+      entryPath,
+      ...await compileProjectResultAsync({
+        ...request,
+        source: entry.contents,
+        entryPath,
+        entryUri: text(entry.uri),
+        syntax: syntaxForPath(entryPath, entry.syntax),
+        files
+      })
+    });
+    if (stopOnError && results[results.length - 1].ok === false) break;
+  }
+
+  return {
+    ok: results.length > 0 && results.every(result => result.ok),
+    version: DART_SASS_VERSION,
+    results
+  };
+}
+
+function startAsyncJob(task) {
+  const jobId = String(nextAsyncJobId++);
+  const job = {
+    state: 'pending',
+    payload: '',
+    message: ''
+  };
+  asyncJobs.set(jobId, job);
+  Promise.resolve()
+    .then(task)
+    .then(result => {
+      job.state = 'complete';
+      job.payload = JSON.stringify(result);
+    })
+    .catch(error => {
+      job.state = 'failed';
+      job.message = text(error && (error.stack || error.message || error));
+    });
+  return JSON.stringify({ jobId });
+}
+
+function pollAsyncJob(value) {
+  const jobId = text(
+    value && typeof value === 'object' ? value.jobId : value
+  );
+  const job = asyncJobs.get(jobId);
+  if (!job) {
+    return JSON.stringify({
+      state: 'missing',
+      message: `Async compilation job "${jobId}" was not found.`
+    });
+  }
+  if (job.state === 'pending') {
+    return JSON.stringify({ state: 'pending' });
+  }
+  asyncJobs.delete(jobId);
+  return JSON.stringify({
+    state: job.state,
+    payload: job.payload,
+    message: job.message
   });
 }
 
@@ -1122,5 +1255,19 @@ globalThis.harmonySass = Object.freeze({
   },
   compileProject,
   compileBatch,
+  startCompileProjectAsync(value) {
+    return startAsyncJob(() => compileProjectResultAsync(value));
+  },
+  startCompileBatchAsync(value) {
+    return startAsyncJob(() => compileBatchResultAsync(value));
+  },
+  pollAsyncJob,
   finalizeExports
 });
+
+if (typeof globalThis.addEventListener === 'function') {
+  globalThis.addEventListener('pagehide', () => {
+    compiler.dispose();
+    asyncCompilerPromise.then(asyncCompiler => asyncCompiler.dispose());
+  }, { once: true });
+}

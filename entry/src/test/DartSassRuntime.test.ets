@@ -1,6 +1,8 @@
 import { describe, expect, it } from '@ohos/hypium';
 import {
   DartSassRuntime,
+  SassAsyncJobPollResponse,
+  SassAsyncJobStartResponse,
   SassBatchCompileRequest,
   SassBatchCompileResponse,
   SassCompileRequest,
@@ -100,6 +102,49 @@ export default function dartSassRuntimeTest() {
       expect(response.results[0].entryPath).assertEqual('src/app.scss');
     });
 
+    it('serializes and parses asynchronous compiler jobs', 0, (): void => {
+      const request: SassCompileRequest = {
+        source: '.app { color: blue; }',
+        entryPath: 'src/app.scss',
+        entryUri: '',
+        files: [],
+        loadPaths: [],
+        nodePackageImporter: false,
+        packageEntryPointDirectory: '',
+        syntax: 'scss',
+        style: 'expanded',
+        alertAscii: false,
+        alertColor: false,
+        sourceMap: false,
+        sourceMapIncludeSources: false,
+        charset: true,
+        quiet: false,
+        quietDeps: false,
+        verbose: false,
+        errorCss: false,
+        fatalDeprecations: [],
+        futureDeprecations: [],
+        silenceDeprecations: []
+      };
+      const startScript: string =
+        DartSassRuntime.createAsyncProjectCompileScript(request);
+      expect(startScript.startsWith(
+        'globalThis.harmonySass.startCompileProjectAsync('
+      )).assertTrue();
+      expect(DartSassRuntime.createAsyncJobPollScript('job"1')).assertEqual(
+        'globalThis.harmonySass.pollAsyncJob("job\\"1")'
+      );
+      const started: SassAsyncJobStartResponse =
+        DartSassRuntime.parseAsyncJobStartResponse('{"jobId":"42"}');
+      expect(started.jobId).assertEqual('42');
+      const polled: SassAsyncJobPollResponse =
+        DartSassRuntime.parseAsyncJobPollResponse(
+          '{"state":"complete","payload":"{\\"ok\\":true}"}'
+        );
+      expect(polled.state).assertEqual('complete');
+      expect(polled.payload).assertEqual('{"ok":true}');
+    });
+
     it('serializes and parses official file export finalization', 0, (): void => {
       const request: SassExportFinalizeRequest = {
         style: 'expanded',
@@ -137,11 +182,13 @@ export default function dartSassRuntimeTest() {
       );
       const metadata: SassRuntimeMetadata = DartSassRuntime.parseMetadata(
         '{"version":"1.101.3","info":"dart-sass\\t1.101.3",' +
+        '"compilerModes":["sync","async"],' +
         '"deprecations":[{"id":"import","status":"active",' +
         '"description":"@import rules.","deprecatedIn":"1.80.0"}]}'
       );
       expect(metadata.version).assertEqual('1.101.3');
       expect(metadata.info).assertEqual('dart-sass\t1.101.3');
+      expect(metadata.compilerModes.includes('async')).assertTrue();
       expect(metadata.deprecations[0].id).assertEqual('import');
       expect(metadata.deprecations[0].deprecatedIn).assertEqual('1.80.0');
     });

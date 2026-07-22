@@ -1,10 +1,13 @@
 # Roadmap
 
-## Completed through 0.9.0
+## Completed through 0.10.0
 
 - Official Dart Sass runtime integration
 - Official Dart Sass `1.101.3` language behavior
-- Official `sass.Compiler` reuse for the ArkWeb page lifecycle
+- Official `sass.Compiler` and `sass.AsyncCompiler` reuse for the ArkWeb page
+  lifecycle
+- Official asynchronous editor and batch compilation through
+  `AsyncCompiler.compileStringAsync()`, with a compatible synchronous bridge
 - Official `sass.info` runtime validation and complete deprecation metadata
   bridging
 - Multi-file virtual project compilation
@@ -57,5 +60,5 @@ Embedded Protocol:
 - Dart Sass Embedded Protocol
 - the complete Dart Sass CLI process, CLI watch contract and `--update`
   target/dependency timestamp graph
-- asynchronous and file-entry npm compiler APIs, JavaScript callback/value
-  object APIs and the legacy JavaScript API surface
+- filesystem file-entry npm APIs (`compile()` and `compileAsync()`),
+  JavaScript callback/value object APIs and the legacy JavaScript API surface

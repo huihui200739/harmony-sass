@@ -11,7 +11,11 @@ than a rewritten or reduced compiler.
 
 - Native HarmonyOS ArkTS two-pane editor UI
 - Official Dart Sass `1.101.3` compiler
-- Page-lifecycle reuse of the official `sass.Compiler`
+- Page-lifecycle reuse of the official `sass.Compiler` and
+  `sass.AsyncCompiler`
+- Editor and batch compilation through official
+  `AsyncCompiler.compileStringAsync()`, with the synchronous bridge retained
+  for compatibility
 - Runtime identity and version validation through official `sass.info`
 - Complete official Dart Sass deprecation metadata available through the
   runtime bridge
@@ -133,7 +137,9 @@ Fixtures cover single-document Sass behavior and project workflows including
 partials, modules, forwarding, legacy imports, output styles, input syntaxes,
 Source Maps, loaded URLs, batch entries, debug messages, deprecation controls,
 fatal deprecation versions, dependency warning classification, warnings and
-structured errors. File-export fixtures compare complete expanded and
+structured errors. The suite also compares official synchronous and
+asynchronous compiler results, loaded URLs and asynchronous batch
+stop-on-error behavior. File-export fixtures compare complete expanded and
 compressed CSS output, Source Map target names and URI-encoded output names
 with the official CLI. They also compare Error CSS, relative and absolute
 Source Map URLs, embedded Source Map data URIs, omitted embedded sources and
@@ -161,8 +167,8 @@ cannot transfer JavaScript callback objects or provide a Node.js process:
 - the complete command-line process contract, including stdin/stdout, directory
   mappings, every CLI flag, CLI watch mode and `--update` target/dependency
   timestamp graph;
-- asynchronous and file-entry npm compiler APIs, JavaScript value/callback
-  object APIs and the legacy JavaScript API surface.
+- filesystem file-entry npm APIs (`compile()` and `compileAsync()`),
+  JavaScript value/callback object APIs and the legacy JavaScript API surface.
 
 Sass functions declared with `@function`, built-in functions and all built-in
 `sass:*` modules are supported by the official compiler.

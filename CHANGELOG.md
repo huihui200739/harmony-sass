@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here.
 
+## 0.10.0 - 2026-07-22
+
+- Added page-lifecycle reuse of the official `sass.AsyncCompiler` alongside
+  the existing synchronous compiler.
+- Added an ArkWeb asynchronous job bridge for official
+  `AsyncCompiler.compileStringAsync()` results without changing the two-pane
+  UI.
+- Moved editor compilation and multiple-entry batch export to the official
+  asynchronous evaluator while retaining the synchronous runtime bridge for
+  compatibility.
+- Added official synchronous-versus-asynchronous fixture comparisons,
+  asynchronous batch stop-on-error coverage and ArkTS bridge tests.
+
 ## 0.9.0 - 2026-07-22
 
 - Reused an official `sass.Compiler` instance for the ArkWeb page lifecycle
