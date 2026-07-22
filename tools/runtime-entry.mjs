@@ -1,6 +1,9 @@
 import * as sass from 'sass';
 
-const DART_SASS_VERSION = '1.101.3';
+const DART_SASS_INFO = sass.info;
+const DART_SASS_VERSION =
+  DART_SASS_INFO.split('\n')[0].split('\t')[1] || '1.101.3';
+const compiler = sass.initCompiler();
 const VIRTUAL_SCHEME = 'harmony-sass:';
 const SUPPORTED_SYNTAXES = new Set(['scss', 'indented', 'css']);
 const SUPPORTED_STYLES = new Set(['expanded', 'compressed']);
@@ -37,6 +40,32 @@ function fatalDeprecationList(value) {
       return item;
     }
   });
+}
+
+function compileString(source, options) {
+  return compiler.compileString(source, options);
+}
+
+function runtimeMetadata() {
+  return {
+    version: DART_SASS_VERSION,
+    info: DART_SASS_INFO,
+    deprecations: Object.values(sass.deprecations).map(deprecation => ({
+      id: text(deprecation.id),
+      status: text(deprecation.status),
+      description: deprecation.description === undefined
+        ? undefined
+        : deprecation.description === null
+          ? null
+          : text(deprecation.description),
+      deprecatedIn: deprecation.deprecatedIn
+        ? text(deprecation.deprecatedIn)
+        : undefined,
+      obsoleteIn: deprecation.obsoleteIn
+        ? text(deprecation.obsoleteIn)
+        : undefined
+    }))
+  };
 }
 
 function decode(value) {
@@ -799,7 +828,7 @@ function createCompileOptions(request, files, logger, overrides = {}) {
 
 function compileForFormattedError(request, files, alertAscii) {
   try {
-    sass.compileString(
+    compileString(
       request.source,
       createCompileOptions(request, files, sass.Logger.silent, {
         alertAscii,
@@ -896,7 +925,7 @@ function compileProjectResult(value) {
       };
 
   try {
-    const result = sass.compileString(
+    const result = compileString(
       request.source,
       createCompileOptions(request, files, logger)
     );
@@ -1084,6 +1113,10 @@ function finalizeExports(value) {
 
 globalThis.harmonySass = Object.freeze({
   version: DART_SASS_VERSION,
+  info: DART_SASS_INFO,
+  getMetadata() {
+    return JSON.stringify(runtimeMetadata());
+  },
   compile(source) {
     return compileProject({ source });
   },

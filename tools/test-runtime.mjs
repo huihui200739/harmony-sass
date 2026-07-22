@@ -41,6 +41,31 @@ context.window = context;
 vm.createContext(context);
 vm.runInContext(runtimeSource, context);
 
+const runtimeMetadata = JSON.parse(context.harmonySass.getMetadata());
+assert.equal(runtimeMetadata.version, sassPackage.version);
+assert.equal(runtimeMetadata.info, sass.info);
+assert.deepEqual(
+  runtimeMetadata.deprecations,
+  Object.values(sass.deprecations).map(deprecation => ({
+    id: String(deprecation.id),
+    status: String(deprecation.status),
+    ...(deprecation.description === undefined
+      ? {}
+      : {
+          description: deprecation.description === null
+            ? null
+            : String(deprecation.description)
+        }),
+    ...(deprecation.deprecatedIn
+      ? { deprecatedIn: String(deprecation.deprecatedIn) }
+      : {}),
+    ...(deprecation.obsoleteIn
+      ? { obsoleteIn: String(deprecation.obsoleteIn) }
+      : {})
+  })),
+  'runtime metadata should match the pinned official Dart Sass package'
+);
+
 async function officialProjectCss(source, files) {
   const root = await mkdtemp(resolve(tmpdir(), 'harmony-sass-reference-'));
   try {
@@ -100,10 +125,10 @@ async function compareCliExport(source, options) {
 
     const args = [
       sassCli,
-      '--embed-sources',
       `--style=${options.style || 'expanded'}`,
       `--source-map-urls=${options.sourceMapUrls || 'relative'}`
     ];
+    if (options.embedSources === true) args.push('--embed-sources');
     if (options.embedSourceMap === true) args.push('--embed-source-map');
     args.push(sourcePath, cssPath);
     await execFileAsync(process.execPath, args);
@@ -118,7 +143,7 @@ async function compareCliExport(source, options) {
       })),
       style: options.style || 'expanded',
       sourceMap: true,
-      sourceMapIncludeSources: true
+      sourceMapIncludeSources: options.embedSources === true
     }));
     assert.equal(compiled.ok, true, 'URI-backed export fixture should compile');
 
@@ -623,10 +648,44 @@ for (const fixture of [
     {
       sourceMapUrls: fixture.sourceMapUrls,
       embedSourceMap: fixture.embedSourceMap,
+      embedSources: true,
       files: [{
         path: 'src/_tokens.scss',
         contents: '$brand: #123456; .tokens { color: $brand; }'
       }]
+    }
+  );
+  assert.equal(
+    compared.actual.css,
+    compared.expectedCss,
+    `${fixture.name} CSS should match the official CLI byte-for-byte`
+  );
+  assert.equal(
+    compared.actual.sourceMap,
+    compared.expectedSourceMap,
+    `${fixture.name} map should match the official CLI byte-for-byte`
+  );
+}
+
+for (const fixture of [
+  {
+    name: 'external Source Map without embedded sources',
+    style: 'expanded',
+    embedSourceMap: false
+  },
+  {
+    name: 'compressed embedded Source Map without embedded sources',
+    style: 'compressed',
+    embedSourceMap: true
+  }
+]) {
+  const compared = await compareCliExport(
+    '.app { color: #123456; }',
+    {
+      style: fixture.style,
+      sourceMapUrls: 'relative',
+      embedSourceMap: fixture.embedSourceMap,
+      embedSources: false
     }
   );
   assert.equal(

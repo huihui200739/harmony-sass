@@ -11,6 +11,10 @@ than a rewritten or reduced compiler.
 
 - Native HarmonyOS ArkTS two-pane editor UI
 - Official Dart Sass `1.101.3` compiler
+- Page-lifecycle reuse of the official `sass.Compiler`
+- Runtime identity and version validation through official `sass.info`
+- Complete official Dart Sass deprecation metadata available through the
+  runtime bridge
 - Full Dart Sass language behavior, including modules, mixins, functions,
   control flow, arithmetic, at-rules and built-in `sass:*` modules
 - Multi-file virtual projects with up to 500 selected stylesheets and package
@@ -26,6 +30,7 @@ than a rewritten or reduced compiler.
 - SCSS, indented Sass and CSS input syntax
 - Expanded and compressed CSS output
 - Optional Source Map generation with embedded sources
+- External or embedded Source Maps with or without embedded sources
 - Official Source Map option defaults for direct runtime API callers
 - Official CLI-compatible CSS/Source Map file association, target file names,
   URI encoding and expanded/compressed export formatting
@@ -131,8 +136,10 @@ fatal deprecation versions, dependency warning classification, warnings and
 structured errors. File-export fixtures compare complete expanded and
 compressed CSS output, Source Map target names and URI-encoded output names
 with the official CLI. They also compare Error CSS, relative and absolute
-Source Map URLs, and embedded Source Map data URIs byte-for-byte. Importer
-fixtures also compare file-versus-index
+Source Map URLs, embedded Source Map data URIs, omitted embedded sources and
+compressed embedded maps byte-for-byte. Runtime checks also compare
+`sass.info` and the complete deprecation metadata table with the pinned
+official package. Importer fixtures also compare file-versus-index
 precedence, Sass-versus-CSS precedence, explicit extensions, ambiguity
 handling, package exports, package conditions, nested dependencies and package
 error boundaries with the pinned official package.
@@ -152,11 +159,19 @@ cannot transfer JavaScript callback objects or provide a Node.js process:
   loaded into the virtual HarmonyOS project;
 - the Dart Sass Embedded Protocol;
 - the complete command-line process contract, including stdin/stdout, directory
-  mappings, every CLI flag and CLI watch mode;
-- the complete public npm and legacy JavaScript API object surface.
+  mappings, every CLI flag, CLI watch mode and `--update` target/dependency
+  timestamp graph;
+- asynchronous and file-entry npm compiler APIs, JavaScript value/callback
+  object APIs and the legacy JavaScript API surface.
 
 Sass functions declared with `@function`, built-in functions and all built-in
 `sass:*` modules are supported by the official compiler.
+
+The application watches authorized project files and automatically recompiles
+when they change. This provides the native editor workflow, but it is not
+presented as the CLI `--update` contract because the CLI also compares output
+timestamps and transitive filesystem dependencies across a process-managed
+stylesheet graph.
 
 Recursive folder selection depends on HarmonyOS document-provider behavior.
 It builds and is covered by project-model tests, but still requires validation

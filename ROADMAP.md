@@ -1,9 +1,12 @@
 # Roadmap
 
-## Completed through 0.8.0
+## Completed through 0.9.0
 
 - Official Dart Sass runtime integration
 - Official Dart Sass `1.101.3` language behavior
+- Official `sass.Compiler` reuse for the ArkWeb page lifecycle
+- Official `sass.info` runtime validation and complete deprecation metadata
+  bridging
 - Multi-file virtual project compilation
 - Sass module, forwarding, partial, index, CSS fallback and legacy import
   resolution with official-compatible precedence
@@ -18,6 +21,8 @@
   encoding
 - Relative and absolute Source Map URLs, embedded Source Maps and
   cross-directory CSS-to-map links
+- Official CLI comparisons for Source Maps with and without embedded sources,
+  including compressed embedded maps
 - Deprecation controls by ID or compiler version, deprecation IDs, warning and
   error Sass stacks, official `quietDeps` behavior and `@debug` messages
 - Official `quiet`, Error CSS and batch `stopOnError` behavior
@@ -50,5 +55,7 @@ Embedded Protocol:
 - external JavaScript `Logger` callback objects
 - filesystem-backed `NodePackageImporter` outside the loaded virtual project
 - Dart Sass Embedded Protocol
-- the complete Dart Sass CLI process and CLI watch contract
-- the complete public npm and legacy JavaScript API surface
+- the complete Dart Sass CLI process, CLI watch contract and `--update`
+  target/dependency timestamp graph
+- asynchronous and file-entry npm compiler APIs, JavaScript callback/value
+  object APIs and the legacy JavaScript API surface

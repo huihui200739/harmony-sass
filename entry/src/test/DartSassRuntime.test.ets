@@ -6,7 +6,8 @@ import {
   SassCompileRequest,
   SassCompileResponse,
   SassExportFinalizeRequest,
-  SassExportFinalizeResponse
+  SassExportFinalizeResponse,
+  SassRuntimeMetadata
 } from '../main/ets/compiler/DartSassRuntime';
 
 export default function dartSassRuntimeTest() {
@@ -128,6 +129,21 @@ export default function dartSassRuntimeTest() {
       expect(response.results[0].sourceMap).assertEqual(
         '{"version":3,"file":"a%20b.css"}'
       );
+    });
+
+    it('requests and parses official runtime metadata', 0, (): void => {
+      expect(DartSassRuntime.createMetadataScript()).assertEqual(
+        'globalThis.harmonySass.getMetadata()'
+      );
+      const metadata: SassRuntimeMetadata = DartSassRuntime.parseMetadata(
+        '{"version":"1.101.3","info":"dart-sass\\t1.101.3",' +
+        '"deprecations":[{"id":"import","status":"active",' +
+        '"description":"@import rules.","deprecatedIn":"1.80.0"}]}'
+      );
+      expect(metadata.version).assertEqual('1.101.3');
+      expect(metadata.info).assertEqual('dart-sass\t1.101.3');
+      expect(metadata.deprecations[0].id).assertEqual('import');
+      expect(metadata.deprecations[0].deprecatedIn).assertEqual('1.80.0');
     });
 
     it('parses a successful runtime response', 0, (): void => {

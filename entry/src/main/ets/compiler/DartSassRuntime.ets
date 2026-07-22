@@ -133,6 +133,20 @@ export interface SassExportFinalizeResponse {
   results: SassFinalizedExportEntry[];
 }
 
+export interface SassDeprecationMetadata {
+  id: string;
+  status: string;
+  description?: string | null;
+  deprecatedIn?: string;
+  obsoleteIn?: string;
+}
+
+export interface SassRuntimeMetadata {
+  version: string;
+  info: string;
+  deprecations: SassDeprecationMetadata[];
+}
+
 export class DartSassRuntime {
   static createCompileScript(source: string): string {
     const request: SassCompileRequest = {
@@ -173,6 +187,10 @@ export class DartSassRuntime {
     return `globalThis.harmonySass.finalizeExports(${JSON.stringify(request)})`;
   }
 
+  static createMetadataScript(): string {
+    return 'globalThis.harmonySass.getMetadata()';
+  }
+
   static parseResponse(payload: string): SassCompileResponse {
     const decoded: SassCompileResponse | string =
       JSON.parse(payload) as SassCompileResponse | string;
@@ -196,6 +214,15 @@ export class DartSassRuntime {
       JSON.parse(payload) as SassExportFinalizeResponse | string;
     if (typeof decoded === 'string') {
       return JSON.parse(decoded) as SassExportFinalizeResponse;
+    }
+    return decoded;
+  }
+
+  static parseMetadata(payload: string): SassRuntimeMetadata {
+    const decoded: SassRuntimeMetadata | string =
+      JSON.parse(payload) as SassRuntimeMetadata | string;
+    if (typeof decoded === 'string') {
+      return JSON.parse(decoded) as SassRuntimeMetadata;
     }
     return decoded;
   }

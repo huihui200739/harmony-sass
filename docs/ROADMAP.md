@@ -4,6 +4,8 @@
 
 - [x] Native HarmonyOS PC two-pane editor UI
 - [x] Official Dart Sass `1.101.3` browser runtime
+- [x] Official `sass.Compiler` reuse for the ArkWeb page lifecycle
+- [x] Official `sass.info` validation and complete deprecation metadata bridge
 - [x] SCSS, indented Sass and CSS input
 - [x] Complete Sass language semantics supplied by Dart Sass
 - [x] Built-in `sass:*` modules and Sass-authored `@function`
@@ -11,6 +13,7 @@
 - [x] Source Maps with official API defaults and optional embedded sources
 - [x] Official CLI-compatible paired CSS and Source Map file export
 - [x] Relative/absolute Source Map source URLs and embedded Source Map data URIs
+- [x] Official CLI Source Map comparisons with and without embedded sources
 - [x] Real HarmonyOS document URIs in loaded URLs, diagnostics and Source Maps
 - [x] Virtual multi-file projects and load paths
 - [x] Relative `@use`, `@forward` and legacy `@import`
@@ -45,11 +48,15 @@
 - [ ] External JavaScript `Logger` callback objects
 - [ ] Filesystem-backed `NodePackageImporter` outside the loaded virtual project
 - [ ] Dart Sass Embedded Protocol
-- [ ] Complete Dart Sass CLI stdin/stdout, directory mapping, flags and watch
-- [ ] Complete public npm and legacy JavaScript API surface
+- [ ] Complete Dart Sass CLI stdin/stdout, directory mapping, flags, watch and
+      `--update` target/dependency timestamp graph
+- [ ] Asynchronous and file-entry npm compiler APIs, JavaScript callback/value
+      object APIs and the legacy JavaScript API surface
 
 These items depend on a Node.js filesystem/process environment or callback
 objects that cannot cross the current ArkTS-to-ArkWeb JSON bridge. The portable
 package-resolution behavior is implemented for files loaded into the virtual
-project; the remaining items are documented as platform boundaries rather than
-replaced with incompatible approximations.
+project. Authorized-file polling and automatic recompilation are implemented,
+but they are not presented as CLI `--update`, which additionally depends on
+output and transitive dependency timestamps. The remaining items are documented
+as platform boundaries rather than replaced with incompatible approximations.

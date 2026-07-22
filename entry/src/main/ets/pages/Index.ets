@@ -15,6 +15,7 @@ import {
   SassExportFinalizeEntry,
   SassExportFinalizeRequest,
   SassExportFinalizeResponse,
+  SassRuntimeMetadata,
   SassSourceSpan,
   SassWarning
 } from '../compiler/DartSassRuntime';
@@ -60,6 +61,7 @@ struct Index {
   @State private loadPathsText: string = '';
   @State private sourceMapEnabled: boolean = false;
   @State private autoCompile: boolean = false;
+  @State private runtimeVersion: string = '1.101.3';
   @State private statusMessage: string = '准备就绪：输入 SCSS 后点击“编译”。';
   @State private isSuccessful: boolean = true;
   @State private diagnosticCount: number = 0;
@@ -274,6 +276,29 @@ struct Index {
     }
     this.isCompiling = true;
     this.compileWithDartSass();
+  }
+
+  private async initializeRuntime(): Promise<void> {
+    if (this.runtimeReady) {
+      return;
+    }
+    try {
+      const payload: string = await this.controller.runJavaScript(
+        DartSassRuntime.createMetadataScript()
+      );
+      const metadata: SassRuntimeMetadata =
+        DartSassRuntime.parseMetadata(payload);
+      if (!metadata.info.startsWith('dart-sass\t') ||
+        metadata.version.length === 0) {
+        throw new Error('加载的编译器不是有效的 Dart Sass 运行时。');
+      }
+      this.runtimeVersion = metadata.version;
+      this.runtimeReady = true;
+      this.compile();
+    } catch (error) {
+      this.isSuccessful = false;
+      this.statusMessage = `Dart Sass 初始化失败 · ${(error as Error).message}`;
+    }
   }
 
   private async compileWithDartSass(): Promise<void> {
@@ -1200,7 +1225,8 @@ struct Index {
         Row() {
           Column({ space: 4 }) {
             Text('Harmony Sass').fontSize(26).fontWeight(FontWeight.Bold).fontColor('#152033')
-            Text('鸿蒙 PC 原生 Sass 编译器 · Dart Sass 1.101.3').fontSize(14).fontColor('#667085')
+            Text(`鸿蒙 PC 原生 Sass 编译器 · Dart Sass ${this.runtimeVersion}`)
+              .fontSize(14).fontColor('#667085')
           }.alignItems(HorizontalAlign.Start).layoutWeight(1)
           Button('载入示例')
             .onClick((): void => this.loadSample())
@@ -1323,8 +1349,7 @@ struct Index {
         .opacity(0)
         .enabled(false)
         .onPageEnd((): void => {
-          this.runtimeReady = true;
-          this.compile();
+          this.initializeRuntime();
         })
     }
     .width('100%').height('100%').backgroundColor('#F4F7FB')

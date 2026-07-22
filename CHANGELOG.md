@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## 0.9.0 - 2026-07-22
+
+- Reused an official `sass.Compiler` instance for the ArkWeb page lifecycle
+  while preserving the existing two-pane UI and compilation results.
+- Exposed and validated the bundled compiler through official `sass.info`
+  metadata instead of relying only on a hard-coded version label.
+- Bridged the complete official deprecation metadata table, including IDs,
+  statuses, release versions and nullable descriptions.
+- Added byte-for-byte official CLI comparisons for external Source Maps
+  without embedded sources and compressed CSS with an embedded Source Map.
+- Documented the remaining `--update` boundary: the native application
+  supports authorized-file change detection and automatic recompilation, but
+  does not reproduce the CLI process's target and dependency timestamp graph.
+
 ## 0.8.0 - 2026-07-22
 
 - Preserved real HarmonyOS document URIs through entry compilation, relative
