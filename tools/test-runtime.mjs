@@ -494,7 +494,11 @@ async function officialPackageResult(source, files, options = {}) {
     const warnings = [];
     const result = sass.compileString(source, {
       url: pathToFileURL(entryFile),
-      importers: [new sass.NodePackageImporter(root)],
+      importers: [
+        new sass.NodePackageImporter(
+          resolve(root, options.packageEntryPointDirectory || '')
+        )
+      ],
       quietDeps: options.quietDeps === true,
       logger: {
         warn(message, warningOptions) {
@@ -1663,6 +1667,130 @@ const packageFixtures = [
         contents: '$brand: red;'
       }
     ]
+  },
+  {
+    name: 'package subpath normalizes duplicate separators',
+    source: '@use "pkg:normalized//tokens"; .app { color: tokens.$brand; }',
+    files: [
+      {
+        path: 'node_modules/normalized/package.json',
+        contents: '{}'
+      },
+      {
+        path: 'node_modules/normalized/_tokens.scss',
+        contents: '$brand: #89abcd;'
+      }
+    ]
+  },
+  {
+    name: 'package subpath normalizes dot segments',
+    source: '@use "pkg:normalized/./tokens"; .app { color: tokens.$brand; }',
+    files: [
+      {
+        path: 'node_modules/normalized/package.json',
+        contents: '{}'
+      },
+      {
+        path: 'node_modules/normalized/_tokens.scss',
+        contents: '$brand: #89abcd;'
+      }
+    ]
+  },
+  {
+    name: 'package subpath normalizes parent segments',
+    source: '@use "pkg:normalized/theme/../tokens"; .app { color: tokens.$brand; }',
+    files: [
+      {
+        path: 'node_modules/normalized/package.json',
+        contents: '{}'
+      },
+      {
+        path: 'node_modules/normalized/_tokens.scss',
+        contents: '$brand: #89abcd;'
+      }
+    ]
+  },
+  {
+    name: 'package encoded subpath',
+    source: '@use "pkg:normalized/color%20tokens" as tokens; .app { color: tokens.$brand; }',
+    files: [
+      {
+        path: 'node_modules/normalized/package.json',
+        contents: '{}'
+      },
+      {
+        path: 'node_modules/normalized/_color tokens.scss',
+        contents: '$brand: #89abcd;'
+      }
+    ]
+  },
+  {
+    name: 'package encoded slash subpath',
+    source: '@use "pkg:normalized/theme%2Ftokens" as tokens; .app { color: tokens.$brand; }',
+    files: [
+      {
+        path: 'node_modules/normalized/package.json',
+        contents: '{}'
+      },
+      {
+        path: 'node_modules/normalized/theme/_tokens.scss',
+        contents: '$brand: #89abcd;'
+      }
+    ]
+  },
+  {
+    name: 'package encoded name',
+    source: '@use "pkg:encoded%20package" as encoded; .app { color: encoded.$brand; }',
+    files: [
+      {
+        path: 'node_modules/encoded package/package.json',
+        contents: JSON.stringify({ sass: 'index.scss' })
+      },
+      {
+        path: 'node_modules/encoded package/index.scss',
+        contents: '$brand: #89abcd;'
+      }
+    ]
+  },
+  {
+    name: 'package export target normalizes parent segments',
+    source: '@use "pkg:target-normalized";',
+    files: [
+      {
+        path: 'node_modules/target-normalized/package.json',
+        contents: JSON.stringify({
+          exports: './src/theme/../index.scss'
+        })
+      },
+      {
+        path: 'node_modules/target-normalized/src/index.scss',
+        contents: '.target-normalized { color: #89abcd; }'
+      }
+    ]
+  },
+  {
+    name: 'containing stylesheet precedes package entry point directory',
+    entryPath: 'src/app.scss',
+    packageEntryPointDirectory: 'packages/app',
+    source: '@use "pkg:entry-nearest"; .app { color: entry-nearest.$brand; }',
+    files: [
+      {
+        path: 'node_modules/entry-nearest/package.json',
+        contents: JSON.stringify({ sass: 'index.scss' })
+      },
+      {
+        path: 'node_modules/entry-nearest/index.scss',
+        contents: '$brand: red;'
+      },
+      {
+        path: 'packages/app/node_modules/entry-nearest/package.json',
+        contents: JSON.stringify({ sass: 'index.scss' })
+      },
+      {
+        path: 'packages/app/node_modules/entry-nearest/index.scss',
+        contents: '$brand: green;'
+      }
+    ]
   }
 ];
 
@@ -1670,12 +1798,18 @@ for (const fixture of packageFixtures) {
   const expected = await officialPackageResult(
     fixture.source,
     fixture.files,
-    { entryPath: fixture.entryPath }
+    {
+      entryPath: fixture.entryPath,
+      packageEntryPointDirectory: fixture.packageEntryPointDirectory
+    }
   );
   const actual = virtualPackageResult(
     fixture.source,
     fixture.files,
-    { entryPath: fixture.entryPath }
+    {
+      entryPath: fixture.entryPath,
+      packageEntryPointDirectory: fixture.packageEntryPointDirectory
+    }
   );
   assert.equal(actual.ok, true, `${fixture.name} should compile`);
   assert.equal(

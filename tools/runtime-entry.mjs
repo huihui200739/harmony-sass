@@ -393,13 +393,13 @@ function directoryExists(files, path) {
 
 function packageNameAndSubpath(specifier) {
   const parts = specifier.split('/').filter(part => part.length > 0);
-  let packageName = parts.shift() || '';
+  let packageName = decode(parts.shift() || '');
   if (packageName.startsWith('@') && parts.length > 0) {
-    packageName = `${packageName}/${parts.shift()}`;
+    packageName = `${packageName}/${decode(parts.shift())}`;
   }
   return {
     packageName,
-    subpath: parts.length > 0 ? parts.join('/') : null
+    subpath: parts.length > 0 ? decode(parts.join('/')) : null
   };
 }
 

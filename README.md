@@ -34,7 +34,8 @@ than a rewritten or reduced compiler.
   directory `_index` files and import-only `.import.scss` files
 - Configurable virtual load paths
 - Virtual-project `NodePackageImporter` support for `pkg:` URLs, nearest
-  `node_modules`, scoped packages, package exports and nested dependencies
+  `node_modules`, scoped and percent-encoded package paths, package exports
+  and nested dependencies
 - SCSS, indented Sass and CSS input syntax
 - Expanded and compressed CSS output
 - Optional Source Map generation with embedded sources
@@ -163,7 +164,8 @@ official package. Importer fixtures
 also compare file-versus-index precedence, Sass-versus-CSS precedence,
 explicit extensions, ambiguity handling, package exports, package conditions,
 condition and array fallbacks, overlapping wildcard precedence, nested
-dependencies and package error boundaries with the pinned official package.
+dependencies, percent-encoded package paths, path normalization and package
+error boundaries with the pinned official package.
 
 ## Runtime boundaries
 

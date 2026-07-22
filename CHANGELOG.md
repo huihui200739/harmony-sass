@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## 0.14.2 - 2026-07-22
+
+- Decoded `pkg:` package names and subpaths segment-by-segment to match the
+  official Dart URI conversion used by `NodePackageImporter`.
+- Added official comparisons for percent-encoded package names and subpaths,
+  duplicate separators, dot segments, normalized export targets and
+  containing-stylesheet resolution precedence.
+
 ## 0.14.1 - 2026-07-22
 
 - Matched official `NodePackageImporter` rejection of empty `pkg:` authority,

@@ -36,8 +36,8 @@
 - [x] Official `quietDeps` behavior for relative and load-path stylesheets
 - [x] Virtual-project `NodePackageImporter`, `pkg:` URLs, nearest
       `node_modules`, package export conditions, array fallbacks, wildcard
-      precedence, nested package dependencies and official malformed URL
-      validation
+      precedence, nested package dependencies, percent-encoded package paths
+      and official malformed URL validation
 - [x] Multiple-entry batch CSS and Source Map export
 - [x] Official `quiet`, Error CSS and batch `stopOnError` behavior
 - [x] Open, save, save-as, save-all, copy and keyboard workflows

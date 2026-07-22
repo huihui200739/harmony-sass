@@ -1,6 +1,6 @@
 # Roadmap
 
-## Completed through 0.14.1
+## Completed through 0.14.2
 
 - Official Dart Sass runtime integration
 - Official Dart Sass `1.101.3` language behavior
@@ -48,8 +48,8 @@
 - Automatic removal of the untouched built-in example when loading a project
 - Virtual-project `NodePackageImporter` with `pkg:`, nearest `node_modules`,
   scoped packages, package exports, conditions, array fallbacks, wildcard
-  precedence, nested dependencies, import-only files and official malformed
-  URL validation
+  precedence, nested dependencies, import-only files, percent-encoded package
+  paths and official malformed URL validation
 - Official partial-first ambiguity diagnostics and encoded document file names
 
 ## Platform validation and release work
