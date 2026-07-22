@@ -134,6 +134,9 @@ export default function dartSassRuntimeTest() {
       expect(DartSassRuntime.createAsyncJobPollScript('job"1')).assertEqual(
         'globalThis.harmonySass.pollAsyncJob("job\\"1")'
       );
+      expect(DartSassRuntime.createAsyncJobReleaseScript('job"1')).assertEqual(
+        'globalThis.harmonySass.releaseAsyncJob("job\\"1")'
+      );
       const started: SassAsyncJobStartResponse =
         DartSassRuntime.parseAsyncJobStartResponse('{"jobId":"42"}');
       expect(started.jobId).assertEqual('42');
@@ -143,6 +146,9 @@ export default function dartSassRuntimeTest() {
         );
       expect(polled.state).assertEqual('complete');
       expect(polled.payload).assertEqual('{"ok":true}');
+      expect(DartSassRuntime.parseAsyncJobReleaseResponse(
+        '{"released":true}'
+      ).released).assertTrue();
     });
 
     it('serializes and parses official file export finalization', 0, (): void => {

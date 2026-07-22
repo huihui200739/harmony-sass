@@ -158,6 +158,10 @@ export interface SassAsyncJobPollResponse {
   message?: string;
 }
 
+export interface SassAsyncJobReleaseResponse {
+  released: boolean;
+}
+
 export class DartSassRuntime {
   static createCompileScript(source: string): string {
     const request: SassCompileRequest = {
@@ -206,6 +210,10 @@ export class DartSassRuntime {
     return `globalThis.harmonySass.pollAsyncJob(${JSON.stringify(jobId)})`;
   }
 
+  static createAsyncJobReleaseScript(jobId: string): string {
+    return `globalThis.harmonySass.releaseAsyncJob(${JSON.stringify(jobId)})`;
+  }
+
   static createFinalizeExportsScript(request: SassExportFinalizeRequest): string {
     return `globalThis.harmonySass.finalizeExports(${JSON.stringify(request)})`;
   }
@@ -246,6 +254,15 @@ export class DartSassRuntime {
       JSON.parse(payload) as SassAsyncJobPollResponse | string;
     if (typeof decoded === 'string') {
       return JSON.parse(decoded) as SassAsyncJobPollResponse;
+    }
+    return decoded;
+  }
+
+  static parseAsyncJobReleaseResponse(payload: string): SassAsyncJobReleaseResponse {
+    const decoded: SassAsyncJobReleaseResponse | string =
+      JSON.parse(payload) as SassAsyncJobReleaseResponse | string;
+    if (typeof decoded === 'string') {
+      return JSON.parse(decoded) as SassAsyncJobReleaseResponse;
     }
     return decoded;
   }

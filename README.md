@@ -16,6 +16,9 @@ than a rewritten or reduced compiler.
 - Editor and batch compilation through official
   `AsyncCompiler.compileStringAsync()`, with the synchronous bridge retained
   for compatibility
+- Explicit release of abandoned asynchronous bridge jobs after timeout or
+  page exit, while allowing the official compiler to finish its own active
+  evaluation lifecycle
 - Runtime identity and version validation through official `sass.info`
 - Complete official Dart Sass deprecation metadata available through the
   runtime bridge
@@ -139,16 +142,20 @@ Source Maps, loaded URLs, batch entries, debug messages, deprecation controls,
 fatal deprecation versions, dependency warning classification, warnings and
 structured errors. The suite also compares official synchronous and
 asynchronous compiler results, loaded URLs and asynchronous batch
-stop-on-error behavior. File-export fixtures compare complete expanded and
-compressed CSS output, Source Map target names and URI-encoded output names
-with the official CLI. They also compare Error CSS, relative and absolute
-Source Map URLs, embedded Source Map data URIs, omitted embedded sources and
-compressed embedded maps byte-for-byte. Runtime checks also compare
-`sass.info` and the complete deprecation metadata table with the pinned
-official package. Importer fixtures also compare file-versus-index
-precedence, Sass-versus-CSS precedence, explicit extensions, ambiguity
-handling, package exports, package conditions, nested dependencies and package
-error boundaries with the pinned official package.
+stop-on-error behavior. Compiler-option fixtures compare `charset`,
+`alertAscii`, `alertColor`, `verbose`, `fatalDeprecations`,
+`futureDeprecations` and `silenceDeprecations` through both compiler modes.
+They also verify explicit release of abandoned ArkWeb jobs. File-export
+fixtures compare complete expanded and compressed CSS output, Source Map
+target names and URI-encoded output names with the official CLI. They also
+compare Error CSS, relative and absolute Source Map URLs, embedded Source Map
+data URIs, omitted embedded sources and compressed embedded maps
+byte-for-byte. Runtime checks also compare `sass.info` and the complete
+deprecation metadata table with the pinned official package. Importer fixtures
+also compare file-versus-index precedence, Sass-versus-CSS precedence,
+explicit extensions, ambiguity handling, package exports, package conditions,
+nested dependencies and package error boundaries with the pinned official
+package.
 
 ## Runtime boundaries
 
@@ -172,6 +179,11 @@ cannot transfer JavaScript callback objects or provide a Node.js process:
 
 Sass functions declared with `@function`, built-in functions and all built-in
 `sass:*` modules are supported by the official compiler.
+
+The official browser distribution itself throws a Node.js-only error for
+legacy `render()` and `renderSync()`, including their `data` string mode.
+Harmony Sass therefore does not present a different implementation under
+those API names.
 
 The application watches authorized project files and automatically recompiles
 when they change. This provides the native editor workflow, but it is not

@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here.
 
+## 0.11.0 - 2026-07-22
+
+- Added explicit release of abandoned ArkWeb asynchronous jobs after timeout
+  and when the editor page exits.
+- Cleared retained job state during runtime page teardown while preserving the
+  official `AsyncCompiler` disposal lifecycle.
+- Added official synchronous and asynchronous comparisons for `charset`,
+  `alertAscii`, `alertColor`, `verbose`, `fatalDeprecations`,
+  `futureDeprecations` and `silenceDeprecations`.
+- Verified and documented that the official browser distribution rejects
+  legacy `render()` and `renderSync()`, including `data` string input, because
+  those APIs require Node.js.
+
 ## 0.10.0 - 2026-07-22
 
 - Added page-lifecycle reuse of the official `sass.AsyncCompiler` alongside

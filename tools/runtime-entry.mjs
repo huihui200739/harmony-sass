@@ -1104,16 +1104,19 @@ function startAsyncJob(task) {
   const job = {
     state: 'pending',
     payload: '',
-    message: ''
+    message: '',
+    released: false
   };
   asyncJobs.set(jobId, job);
   Promise.resolve()
     .then(task)
     .then(result => {
+      if (job.released) return;
       job.state = 'complete';
       job.payload = JSON.stringify(result);
     })
     .catch(error => {
+      if (job.released) return;
       job.state = 'failed';
       job.message = text(error && (error.stack || error.message || error));
     });
@@ -1140,6 +1143,26 @@ function pollAsyncJob(value) {
     payload: job.payload,
     message: job.message
   });
+}
+
+function releaseAsyncJob(value) {
+  const jobId = text(
+    value && typeof value === 'object' ? value.jobId : value
+  );
+  const job = asyncJobs.get(jobId);
+  if (!job) {
+    return JSON.stringify({ released: false });
+  }
+  job.released = true;
+  asyncJobs.delete(jobId);
+  return JSON.stringify({ released: true });
+}
+
+function clearAsyncJobs() {
+  for (const job of asyncJobs.values()) {
+    job.released = true;
+  }
+  asyncJobs.clear();
 }
 
 function encodedFileName(value) {
@@ -1262,11 +1285,13 @@ globalThis.harmonySass = Object.freeze({
     return startAsyncJob(() => compileBatchResultAsync(value));
   },
   pollAsyncJob,
+  releaseAsyncJob,
   finalizeExports
 });
 
 if (typeof globalThis.addEventListener === 'function') {
   globalThis.addEventListener('pagehide', () => {
+    clearAsyncJobs();
     compiler.dispose();
     asyncCompilerPromise.then(asyncCompiler => asyncCompiler.dispose());
   }, { once: true });

@@ -8,6 +8,8 @@
       page lifecycle
 - [x] Official `AsyncCompiler.compileStringAsync()` editor and batch workflows
       with a compatible synchronous runtime bridge
+- [x] Explicit release of abandoned asynchronous bridge jobs on timeout and
+      page exit
 - [x] Official `sass.info` validation and complete deprecation metadata bridge
 - [x] SCSS, indented Sass and CSS input
 - [x] Complete Sass language semantics supplied by Dart Sass
@@ -26,6 +28,8 @@
 - [x] Structured errors, warnings, deprecation IDs, warning/error Sass stacks
       and `@debug`
 - [x] Fatal deprecations by ID or Dart Sass version
+- [x] Sync/async parity checks for charset output, ASCII/color diagnostics,
+      verbose warnings and deprecation option validation
 - [x] Official `quietDeps` behavior for relative and load-path stylesheets
 - [x] Virtual-project `NodePackageImporter`, `pkg:` URLs, nearest
       `node_modules`, package exports and nested package dependencies
@@ -64,3 +68,5 @@ project. Authorized-file polling and automatic recompilation are implemented,
 but they are not presented as CLI `--update`, which additionally depends on
 output and transitive dependency timestamps. The remaining items are documented
 as platform boundaries rather than replaced with incompatible approximations.
+The official browser build also rejects legacy `render()` and `renderSync()`
+when only the `data` string option is used.

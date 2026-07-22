@@ -97,6 +97,126 @@ async function runtimeCompileBatchAsync(request) {
   return JSON.parse(payload);
 }
 
+function warningSnapshot(warnings) {
+  return warnings.map(warning => ({
+    message: warning.message,
+    deprecation: warning.deprecation === true,
+    deprecationType: warning.deprecationType,
+    stack: warning.stack
+  }));
+}
+
+async function officialCompileSnapshot(source, request, asynchronous) {
+  const warnings = [];
+  const debugMessages = [];
+  const entryPath = request.entryPath || (
+    request.syntax === 'indented'
+      ? 'stdin.sass'
+      : request.syntax === 'css'
+        ? 'stdin.css'
+        : 'stdin.scss'
+  );
+  const options = {
+    url: new URL(`harmony-sass:/${entryPath}`),
+    syntax: request.syntax || 'scss',
+    style: request.style || 'expanded',
+    alertAscii: request.alertAscii === true,
+    alertColor: request.alertColor === true,
+    sourceMap: request.sourceMap === true,
+    sourceMapIncludeSources: request.sourceMapIncludeSources === true,
+    charset: request.charset !== false,
+    quietDeps: request.quietDeps === true,
+    verbose: request.verbose === true,
+    fatalDeprecations: (request.fatalDeprecations || []).map(value =>
+      /^\d+\.\d+\.\d+$/.test(value) ? sass.Version.parse(value) : value
+    ),
+    futureDeprecations: request.futureDeprecations || [],
+    silenceDeprecations: request.silenceDeprecations || [],
+    logger: request.quiet === true
+      ? sass.Logger.silent
+      : {
+          warn(message, warningOptions) {
+            warnings.push({
+              message,
+              deprecation: warningOptions.deprecation === true,
+              deprecationType: warningOptions.deprecationType
+                ? warningOptions.deprecationType.id
+                : undefined,
+              stack: warningOptions.stack || undefined
+            });
+          },
+          debug(message) {
+            debugMessages.push({ message });
+          }
+        }
+  };
+  try {
+    const result = asynchronous
+      ? await sass.compileStringAsync(source, options)
+      : sass.compileString(source, options);
+    return {
+      ok: true,
+      css: result.css,
+      sourceMap: result.sourceMap ? JSON.stringify(result.sourceMap) : '',
+      loadedUrls: result.loadedUrls.map(url => String(url)),
+      warnings,
+      debugMessages
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      formatted: error.message,
+      message: error.sassMessage || error.message,
+      sassStack: error.sassStack,
+      warnings,
+      debugMessages
+    };
+  }
+}
+
+function assertCompileSnapshot(actual, expected, label) {
+  assert.equal(actual.ok, expected.ok, `${label} success state should match`);
+  assert.deepEqual(
+    warningSnapshot(actual.warnings || []),
+    warningSnapshot(expected.warnings || []),
+    `${label} warnings should match`
+  );
+  assert.deepEqual(
+    (actual.debugMessages || []).map(message => ({ message: message.message })),
+    expected.debugMessages,
+    `${label} debug messages should match`
+  );
+  if (expected.ok) {
+    assert.equal(actual.css, expected.css, `${label} CSS should match`);
+    assert.equal(
+      actual.sourceMap || '',
+      expected.sourceMap,
+      `${label} Source Map should match`
+    );
+    assert.deepEqual(
+      actual.loadedUrls,
+      expected.loadedUrls,
+      `${label} loaded URLs should match`
+    );
+  } else {
+    assert.equal(
+      actual.error.formatted,
+      expected.formatted,
+      `${label} formatted error should match`
+    );
+    assert.equal(
+      actual.error.message,
+      expected.message,
+      `${label} Sass error should match`
+    );
+    assert.equal(
+      actual.error.sassStack,
+      expected.sassStack,
+      `${label} Sass stack should match`
+    );
+  }
+}
+
 async function officialProjectCss(source, files) {
   const root = await mkdtemp(resolve(tmpdir(), 'harmony-sass-reference-'));
   try {
@@ -396,6 +516,158 @@ for (const fixture of fixtures) {
     asyncActual.loadedUrls,
     asyncExpected.loadedUrls.map(url => String(url)),
     `${fixture.name} async loaded URLs should match Dart Sass`
+  );
+}
+
+const releasedJob = JSON.parse(
+  context.harmonySass.startCompileProjectAsync({
+    source: '.released { color: red; }'
+  })
+);
+assert.equal(
+  JSON.parse(context.harmonySass.releaseAsyncJob(releasedJob.jobId)).released,
+  true,
+  'pending async jobs should be explicitly releasable'
+);
+assert.equal(
+  JSON.parse(context.harmonySass.pollAsyncJob(releasedJob.jobId)).state,
+  'missing',
+  'released async jobs should no longer be retained'
+);
+assert.equal(
+  JSON.parse(context.harmonySass.releaseAsyncJob(releasedJob.jobId)).released,
+  false,
+  'releasing an unknown async job should be harmless'
+);
+
+const optionFixtures = [
+  {
+    name: 'expanded output with charset',
+    source: '.message::before { content: "你好"; }',
+    request: { style: 'expanded', charset: true }
+  },
+  {
+    name: 'expanded output without charset',
+    source: '.message::before { content: "你好"; }',
+    request: { style: 'expanded', charset: false }
+  },
+  {
+    name: 'compressed output with charset',
+    source: '.message::before { content: "你好"; }',
+    request: { style: 'compressed', charset: true }
+  },
+  {
+    name: 'compressed output without charset',
+    source: '.message::before { content: "你好"; }',
+    request: { style: 'compressed', charset: false }
+  },
+  {
+    name: 'ASCII formatted diagnostics',
+    source: '.你好 { color: $missing; }',
+    request: { alertAscii: true, alertColor: false }
+  },
+  {
+    name: 'colored formatted diagnostics',
+    source: '.你好 { color: $missing; }',
+    request: { alertAscii: false, alertColor: true }
+  }
+];
+
+for (const fixture of optionFixtures) {
+  const syncActual = JSON.parse(context.harmonySass.compileProject({
+    source: fixture.source,
+    ...fixture.request
+  }));
+  const syncExpected = await officialCompileSnapshot(
+    fixture.source,
+    fixture.request,
+    false
+  );
+  assertCompileSnapshot(syncActual, syncExpected, `${fixture.name} sync`);
+
+  const asyncActual = await runtimeCompileProjectAsync({
+    source: fixture.source,
+    ...fixture.request
+  });
+  const asyncExpected = await officialCompileSnapshot(
+    fixture.source,
+    fixture.request,
+    true
+  );
+  assertCompileSnapshot(asyncActual, asyncExpected, `${fixture.name} async`);
+}
+
+const repeatedDeprecations = Array.from(
+  { length: 8 },
+  (_, index) => `.item-${index} { color: red(#123456); }`
+).join('\n');
+for (const verbose of [false, true]) {
+  const request = { verbose };
+  const syncActual = JSON.parse(context.harmonySass.compileProject({
+    source: repeatedDeprecations,
+    ...request
+  }));
+  const syncExpected = await officialCompileSnapshot(
+    repeatedDeprecations,
+    request,
+    false
+  );
+  assertCompileSnapshot(
+    syncActual,
+    syncExpected,
+    `verbose=${verbose} sync deprecations`
+  );
+
+  const asyncActual = await runtimeCompileProjectAsync({
+    source: repeatedDeprecations,
+    ...request
+  });
+  const asyncExpected = await officialCompileSnapshot(
+    repeatedDeprecations,
+    request,
+    true
+  );
+  assertCompileSnapshot(
+    asyncActual,
+    asyncExpected,
+    `verbose=${verbose} async deprecations`
+  );
+}
+
+for (const option of [
+  'fatalDeprecations',
+  'futureDeprecations',
+  'silenceDeprecations'
+]) {
+  const request = { [option]: ['not-a-deprecation'] };
+  const syncActual = JSON.parse(context.harmonySass.compileProject({
+    source: '.options { color: red; }',
+    ...request
+  }));
+  const syncExpected = await officialCompileSnapshot(
+    '.options { color: red; }',
+    request,
+    false
+  );
+  assertCompileSnapshot(
+    syncActual,
+    syncExpected,
+    `${option} validation sync`
+  );
+
+  const asyncActual = await runtimeCompileProjectAsync({
+    source: '.options { color: red; }',
+    ...request
+  });
+  const asyncExpected = await officialCompileSnapshot(
+    '.options { color: red; }',
+    request,
+    true
+  );
+  assertCompileSnapshot(
+    asyncActual,
+    asyncExpected,
+    `${option} validation async`
   );
 }
 
@@ -1532,5 +1804,5 @@ assert.equal(failure.error.span.start.line, 1);
 assert.equal(failure.error.span.end.column, 24);
 
 console.log(
-  `Verified ${fixtures.length} single-document fixtures, package resolution, diagnostics, deprecations, and project workflows against Dart Sass ${sassPackage.version}.`
+  `Verified ${fixtures.length} single-document fixtures, compiler options, async lifecycle, package resolution, diagnostics, deprecations, and project workflows against Dart Sass ${sassPackage.version}.`
 );

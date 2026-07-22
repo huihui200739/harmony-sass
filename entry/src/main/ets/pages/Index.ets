@@ -77,6 +77,7 @@ struct Index {
   private isCheckingFiles: boolean = false;
   private fileSignatures: Map<string, string> = new Map<string, string>();
   private dirtyPaths: Set<string> = new Set<string>();
+  private activeAsyncJobIds: Set<string> = new Set<string>();
   private preferenceStore: preferences.Preferences | null = null;
 
   async aboutToAppear(): Promise<void> {
@@ -94,6 +95,7 @@ struct Index {
     }
     this.saveSession();
     this.stopFileWatch();
+    this.releasePendingAsyncJobs();
   }
 
   private async restoreSession(): Promise<void> {
@@ -312,28 +314,57 @@ struct Index {
     if (started.jobId.length === 0) {
       throw new Error('Dart Sass 未返回异步编译任务编号。');
     }
+    this.activeAsyncJobIds.add(started.jobId);
 
-    const deadline: number = Date.now() + 120000;
-    while (Date.now() < deadline) {
-      const pollPayload: string = await this.controller.runJavaScript(
-        DartSassRuntime.createAsyncJobPollScript(started.jobId)
-      );
-      const polled: SassAsyncJobPollResponse =
-        DartSassRuntime.parseAsyncJobPollResponse(pollPayload);
-      if (polled.state === 'complete') {
-        if (polled.payload === undefined || polled.payload.length === 0) {
-          throw new Error('Dart Sass 异步编译未返回结果。');
+    let consumed: boolean = false;
+    try {
+      const deadline: number = Date.now() + 120000;
+      while (Date.now() < deadline) {
+        const pollPayload: string = await this.controller.runJavaScript(
+          DartSassRuntime.createAsyncJobPollScript(started.jobId)
+        );
+        const polled: SassAsyncJobPollResponse =
+          DartSassRuntime.parseAsyncJobPollResponse(pollPayload);
+        if (polled.state === 'complete') {
+          consumed = true;
+          if (polled.payload === undefined || polled.payload.length === 0) {
+            throw new Error('Dart Sass 异步编译未返回结果。');
+          }
+          return polled.payload;
         }
-        return polled.payload;
+        if (polled.state !== 'pending') {
+          consumed = true;
+          throw new Error(polled.message ?? 'Dart Sass 异步编译任务失败。');
+        }
+        await new Promise<void>((resolve: () => void): void => {
+          setTimeout((): void => resolve(), 8);
+        });
       }
-      if (polled.state !== 'pending') {
-        throw new Error(polled.message ?? 'Dart Sass 异步编译任务失败。');
+      throw new Error('Dart Sass 异步编译超时。');
+    } finally {
+      this.activeAsyncJobIds.delete(started.jobId);
+      if (!consumed) {
+        try {
+          await this.controller.runJavaScript(
+            DartSassRuntime.createAsyncJobReleaseScript(started.jobId)
+          );
+        } catch (_) {
+        }
       }
-      await new Promise<void>((resolve: () => void): void => {
-        setTimeout((): void => resolve(), 8);
-      });
     }
-    throw new Error('Dart Sass 异步编译超时。');
+  }
+
+  private async releasePendingAsyncJobs(): Promise<void> {
+    const jobIds: string[] = Array.from(this.activeAsyncJobIds);
+    this.activeAsyncJobIds.clear();
+    for (const jobId of jobIds) {
+      try {
+        await this.controller.runJavaScript(
+          DartSassRuntime.createAsyncJobReleaseScript(jobId)
+        );
+      } catch (_) {
+      }
+    }
   }
 
   private async compileWithDartSass(): Promise<void> {

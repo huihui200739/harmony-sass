@@ -1,6 +1,6 @@
 # Roadmap
 
-## Completed through 0.10.0
+## Completed through 0.11.0
 
 - Official Dart Sass runtime integration
 - Official Dart Sass `1.101.3` language behavior
@@ -8,6 +8,10 @@
   lifecycle
 - Official asynchronous editor and batch compilation through
   `AsyncCompiler.compileStringAsync()`, with a compatible synchronous bridge
+- Explicit cleanup of abandoned asynchronous bridge jobs on timeout and page
+  exit
+- Official sync/async option comparisons for charset output, ASCII/color
+  diagnostics, verbose warnings and all three deprecation option lists
 - Official `sass.info` runtime validation and complete deprecation metadata
   bridging
 - Multi-file virtual project compilation
@@ -62,3 +66,6 @@ Embedded Protocol:
   target/dependency timestamp graph
 - filesystem file-entry npm APIs (`compile()` and `compileAsync()`),
   JavaScript callback/value object APIs and the legacy JavaScript API surface
+
+The official browser build rejects legacy `render()` and `renderSync()` even
+when `data` is provided, so these remain an upstream Node.js boundary.
