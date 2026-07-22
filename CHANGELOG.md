@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## 0.14.1 - 2026-07-22
+
+- Matched official `NodePackageImporter` rejection of empty `pkg:` authority,
+  query and fragment delimiters in synchronous and asynchronous compilation.
+- Added official Dart Sass comparisons for malformed package URLs that the
+  JavaScript URL API otherwise normalizes away.
+
 ## 0.14.0 - 2026-07-22
 
 - Added structured official compiler-version metadata and complete

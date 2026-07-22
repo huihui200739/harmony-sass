@@ -676,8 +676,13 @@ function createNodePackageImporter(files, entryPointDirectory) {
         return resolved ? projectUrl(files, resolved) : null;
       }
 
+      const packageUrl = url.slice('pkg:'.length);
       const parsed = new URL(url);
-      if (parsed.host || parsed.username || parsed.password || parsed.port) {
+      if (packageUrl.startsWith('//') ||
+        parsed.host ||
+        parsed.username ||
+        parsed.password ||
+        parsed.port) {
         throw new Error(
           'A pkg: URL must not have a host, port, username or password.'
         );
@@ -688,7 +693,10 @@ function createNodePackageImporter(files, entryPointDirectory) {
       if (!parsed.pathname) {
         throw new Error('A pkg: URL must not have an empty path.');
       }
-      if (parsed.search || parsed.hash) {
+      if (packageUrl.includes('?') ||
+        packageUrl.includes('#') ||
+        parsed.search ||
+        parsed.hash) {
         throw new Error('A pkg: URL must not have a query or fragment.');
       }
 

@@ -2,8 +2,8 @@
   "app": {
     "bundleName": "com.harmonysass.desktop",
     "vendor": "Harmony Sass Contributors",
-    "versionCode": 14000000,
-    "versionName": "0.14.0",
+    "versionCode": 14010000,
+    "versionName": "0.14.1",
     "buildVersion": "1",
     "icon": "$media:layered_image",
     "label": "$string:app_name"

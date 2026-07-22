@@ -1919,7 +1919,15 @@ for (const fixture of packageErrorFixtures) {
 const malformedPackageUrls = [
   ['pkg:/theme', 'must not begin with /'],
   ['pkg://host/theme', 'must not have a host'],
+  ['pkg://', 'must not have a host'],
+  ['pkg:///', 'must not have a host'],
+  ['pkg:///theme', 'must not have a host'],
   ['pkg:theme?variant=dark', 'must not have a query'],
+  ['pkg:theme?', 'must not have a query'],
+  ['pkg:theme#', 'must not have a query'],
+  ['pkg:theme?#', 'must not have a query'],
+  ['pkg:theme/sub?', 'must not have a query'],
+  ['pkg:theme/sub#', 'must not have a query'],
   ['pkg:', 'must not have an empty path']
 ];
 
@@ -1927,10 +1935,18 @@ for (const [url, message] of malformedPackageUrls) {
   const source = `@use "${url}" as malformed;`;
   const expected = await officialPackageError(source, []);
   const actual = virtualPackageResult(source, []);
+  const asyncActual = await runtimeCompileProjectAsync({
+    source,
+    entryPath: 'src/app.scss',
+    files: [],
+    nodePackageImporter: true
+  });
   assert.ok(expected, `${url} should fail with official Dart Sass`);
   assert.equal(actual.ok, false, `${url} should fail`);
+  assert.equal(asyncActual.ok, false, `${url} should fail asynchronously`);
   assert.match(expected.message, new RegExp(message, 'i'));
   assert.match(actual.error.formatted, new RegExp(message, 'i'));
+  assert.match(asyncActual.error.formatted, new RegExp(message, 'i'));
 }
 
 const batch = JSON.parse(context.harmonySass.compileBatch({
