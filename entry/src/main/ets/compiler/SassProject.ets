@@ -277,19 +277,20 @@ export class SassProject {
   }
 
   private static uriSegments(uri: string): string[] {
-    let decoded: string = uri;
-    try {
-      decoded = decodeURIComponent(uri);
-    } catch (_) {
-      decoded = uri;
-    }
-    const queryIndex: number = decoded.indexOf('?');
+    let source: string = uri;
+    const queryIndex: number = source.indexOf('?');
     if (queryIndex >= 0) {
-      decoded = decoded.slice(0, queryIndex);
+      source = source.slice(0, queryIndex);
     }
-    const fragmentIndex: number = decoded.indexOf('#');
+    const fragmentIndex: number = source.indexOf('#');
     if (fragmentIndex >= 0) {
-      decoded = decoded.slice(0, fragmentIndex);
+      source = source.slice(0, fragmentIndex);
+    }
+    let decoded: string = source;
+    try {
+      decoded = decodeURIComponent(source);
+    } catch (_) {
+      decoded = source;
     }
     const schemeIndex: number = decoded.indexOf('://');
     if (schemeIndex >= 0) {

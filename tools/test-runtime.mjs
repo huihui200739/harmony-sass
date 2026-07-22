@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import {
   mkdir,
   mkdtemp,
@@ -8,12 +9,15 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import * as sass from 'sass';
 
 const toolsDir = dirname(fileURLToPath(import.meta.url));
+const execFileAsync = promisify(execFile);
+const sassCli = resolve(toolsDir, 'node_modules/sass/sass.js');
 const sassPackage = JSON.parse(
   await readFile(resolve(toolsDir, 'node_modules/sass/package.json'), 'utf8')
 );
@@ -49,6 +53,28 @@ async function officialProjectCss(source, files) {
       url: pathToFileURL(resolve(root, 'app.scss')),
       logger: sass.Logger.silent
     }).css;
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function officialCliExport(source, outputFileName, style) {
+  const root = await mkdtemp(resolve(tmpdir(), 'harmony-sass-cli-reference-'));
+  const sourcePath = resolve(root, 'app.scss');
+  const cssPath = resolve(root, outputFileName);
+  try {
+    await writeFile(sourcePath, source);
+    await execFileAsync(process.execPath, [
+      sassCli,
+      '--embed-sources',
+      `--style=${style}`,
+      sourcePath,
+      cssPath
+    ]);
+    return {
+      css: await readFile(cssPath, 'utf8'),
+      sourceMap: JSON.parse(await readFile(`${cssPath}.map`, 'utf8'))
+    };
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -387,7 +413,50 @@ const ambiguousProject = JSON.parse(context.harmonySass.compileProject({
   ]
 }));
 assert.equal(ambiguousProject.ok, false);
-assert.match(ambiguousProject.error.message, /Ambiguous stylesheet/);
+assert.equal(
+  ambiguousProject.error.message,
+  "It's not clear which file to import. Found:\n" +
+    '  _theme.scss\n' +
+    '  theme.scss'
+);
+
+for (const fixture of [
+  { style: 'expanded', outputFileName: 'a b.css' },
+  { style: 'compressed', outputFileName: 'compressed.css' }
+]) {
+  const source = '.a { color: red; }';
+  const compiled = JSON.parse(context.harmonySass.compileProject({
+    source,
+    entryPath: 'app.scss',
+    style: fixture.style,
+    sourceMap: true,
+    sourceMapIncludeSources: true
+  }));
+  assert.equal(compiled.ok, true);
+  const finalized = JSON.parse(context.harmonySass.finalizeExports({
+    style: fixture.style,
+    entries: [{
+      css: compiled.css,
+      sourceMap: compiled.sourceMap,
+      cssFileName: fixture.outputFileName,
+      sourceMapFileName: `${fixture.outputFileName}.map`
+    }]
+  }));
+  const expected = await officialCliExport(
+    source,
+    fixture.outputFileName,
+    fixture.style
+  );
+  const actualMap = JSON.parse(finalized.results[0].sourceMap);
+  assert.equal(
+    finalized.results[0].css,
+    expected.css,
+    `${fixture.style} CSS export should match the official CLI`
+  );
+  assert.equal(actualMap.file, expected.sourceMap.file);
+  assert.equal(actualMap.mappings, expected.sourceMap.mappings);
+  assert.deepEqual(actualMap.sourcesContent, expected.sourceMap.sourcesContent);
+}
 
 const explicitExtensionProject = JSON.parse(context.harmonySass.compileProject({
   source: '@use "theme.scss";',

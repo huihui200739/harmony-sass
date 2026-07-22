@@ -27,6 +27,12 @@ export default function sassProjectTest() {
       expect(paths[2]).assertEqual('components/_button.scss');
     });
 
+    it('preserves encoded query and fragment characters in file names', 0, (): void => {
+      expect(SassProject.fileNameFromUri(
+        'file://docs/app%23print%3Fwide.scss?token=ignored#preview'
+      )).assertEqual('app#print?wide.scss');
+    });
+
     it('merges duplicate files and excludes the entry from imports', 0, (): void => {
       const first: SassEditorFile = {
         path: 'main.scss',

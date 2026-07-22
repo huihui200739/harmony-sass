@@ -1,6 +1,6 @@
 # Roadmap
 
-## Completed through 0.6.0
+## Completed through 0.7.0
 
 - Official Dart Sass runtime integration
 - Official Dart Sass `1.101.3` language behavior
@@ -11,6 +11,9 @@
 - Expanded and compressed output
 - Source Maps with official defaults, warnings, loaded URLs and full error
   spans
+- Official CLI-compatible paired CSS/Source Map file export, including the
+  Source Map `file` field, `sourceMappingURL`, output-style whitespace and URI
+  encoding
 - Deprecation controls by ID or compiler version, deprecation IDs, warning and
   error Sass stacks, official `quietDeps` behavior and `@debug` messages
 - Multiple-entry batch compilation
@@ -24,6 +27,7 @@
 - Automatic removal of the untouched built-in example when loading a project
 - Virtual-project `NodePackageImporter` with `pkg:`, nearest `node_modules`,
   scoped packages, package exports, nested dependencies and import-only files
+- Official partial-first ambiguity diagnostics and encoded document file names
 
 ## Platform validation and release work
 

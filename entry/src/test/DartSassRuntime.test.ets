@@ -4,7 +4,9 @@ import {
   SassBatchCompileRequest,
   SassBatchCompileResponse,
   SassCompileRequest,
-  SassCompileResponse
+  SassCompileResponse,
+  SassExportFinalizeRequest,
+  SassExportFinalizeResponse
 } from '../main/ets/compiler/DartSassRuntime';
 
 export default function dartSassRuntimeTest() {
@@ -82,6 +84,33 @@ export default function dartSassRuntimeTest() {
         '{"entryPath":"src/app.scss","ok":true,"version":"1.101.3","css":".app {}"}]}'
       );
       expect(response.results[0].entryPath).assertEqual('src/app.scss');
+    });
+
+    it('serializes and parses official file export finalization', 0, (): void => {
+      const request: SassExportFinalizeRequest = {
+        style: 'expanded',
+        entries: [{
+          css: '.a {\n  color: red;\n}',
+          sourceMap: '{"version":3,"mappings":"AAAA"}',
+          cssFileName: 'a b.css',
+          sourceMapFileName: 'a b.css.map'
+        }]
+      };
+      const script: string =
+        DartSassRuntime.createFinalizeExportsScript(request);
+      expect(script.startsWith(
+        'globalThis.harmonySass.finalizeExports('
+      )).assertTrue();
+      expect(script.includes('"cssFileName":"a b.css"')).assertTrue();
+      const response: SassExportFinalizeResponse =
+        DartSassRuntime.parseFinalizeExportsResponse(
+          '{"results":[{"css":".a {}\\n","sourceMap":' +
+          '"{\\"version\\":3,\\"file\\":\\"a%20b.css\\"}"}]}'
+        );
+      expect(response.results.length).assertEqual(1);
+      expect(response.results[0].sourceMap).assertEqual(
+        '{"version":3,"file":"a%20b.css"}'
+      );
     });
 
     it('parses a successful runtime response', 0, (): void => {

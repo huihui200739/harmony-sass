@@ -96,7 +96,7 @@ function matchingPaths(files, stem, extensions, importOnly) {
   for (const extension of extensions) {
     if (importOnly && extension === '.css') continue;
     const path = `${stem}${importOnly ? '.import' : ''}${extension}`;
-    for (const candidate of [path, partialPath(path)]) {
+    for (const candidate of [partialPath(path), path]) {
       const normalized = normalizePath(candidate);
       if (files.has(normalized) && !matches.includes(normalized)) {
         matches.push(normalized);
@@ -105,7 +105,8 @@ function matchingPaths(files, stem, extensions, importOnly) {
   }
   if (matches.length > 1) {
     throw new Error(
-      `Ambiguous stylesheet "${stem}". Found: ${matches.join(', ')}`
+      `It's not clear which file to import. Found:\n` +
+      matches.map(path => `  ${path}`).join('\n')
     );
   }
   return matches[0] || null;
@@ -811,11 +812,38 @@ function compileBatch(value) {
   });
 }
 
+function encodedFileName(value) {
+  return encodeURIComponent(basename(text(value)));
+}
+
+function finalizeExports(value) {
+  const request = value && typeof value === 'object' ? value : {};
+  const style = SUPPORTED_STYLES.has(request.style)
+    ? request.style
+    : 'expanded';
+  const entries = Array.isArray(request.entries) ? request.entries : [];
+  const results = entries.map(entry => {
+    const candidate = entry && typeof entry === 'object' ? entry : {};
+    const sourceMap = JSON.parse(text(candidate.sourceMap));
+    const cssFileName = encodedFileName(candidate.cssFileName);
+    const sourceMapFileName = encodedFileName(candidate.sourceMapFileName);
+    sourceMap.file = cssFileName;
+    const separator = style === 'compressed' ? '' : '\n\n';
+    return {
+      css: `${text(candidate.css)}${separator}` +
+        `/*# sourceMappingURL=${sourceMapFileName} */\n`,
+      sourceMap: JSON.stringify(sourceMap)
+    };
+  });
+  return JSON.stringify({ results });
+}
+
 globalThis.harmonySass = Object.freeze({
   version: DART_SASS_VERSION,
   compile(source) {
     return compileProject({ source });
   },
   compileProject,
-  compileBatch
+  compileBatch,
+  finalizeExports
 });

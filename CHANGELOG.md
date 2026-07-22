@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## 0.7.0 - 2026-07-22
+
+- Matched the official Dart Sass CLI file-export behavior when Source Maps are
+  enabled.
+- Added paired CSS and Source Map export through the existing CSS export
+  action without changing the two-pane UI.
+- Added the final CSS file to the Source Map `file` field and appended the
+  official `sourceMappingURL` comment with expanded/compressed whitespace and
+  URI encoding behavior.
+- Kept standalone Source Map export while associating the map with its
+  corresponding CSS file name.
+- Matched the official partial-first ambiguity order and error message for
+  conflicting partial and non-partial stylesheets.
+- Preserved percent-encoded `#` and `?` characters in document-provider file
+  names.
+- Added official CLI comparisons for expanded, compressed and space-containing
+  output file names.
+
 ## 0.6.0 - 2026-07-22
 
 - Added a virtual-project `NodePackageImporter` based on the official Dart Sass

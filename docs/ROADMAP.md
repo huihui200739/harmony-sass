@@ -9,9 +9,11 @@
 - [x] Built-in `sass:*` modules and Sass-authored `@function`
 - [x] Expanded and compressed CSS
 - [x] Source Maps with official API defaults and optional embedded sources
+- [x] Official CLI-compatible paired CSS and Source Map file export
 - [x] Virtual multi-file projects and load paths
 - [x] Relative `@use`, `@forward` and legacy `@import`
 - [x] Partials, directory indexes, import-only files and ambiguity errors
+- [x] Official partial-first ambiguity diagnostics
 - [x] Official-compatible direct/index and Sass/CSS resolution precedence
 - [x] Structured errors, warnings, deprecation IDs, warning/error Sass stacks
       and `@debug`
@@ -21,6 +23,7 @@
       `node_modules`, package exports and nested package dependencies
 - [x] Multiple-entry batch CSS and Source Map export
 - [x] Open, save, save-as, save-all, copy and keyboard workflows
+- [x] URI-safe document-provider file names containing encoded `#` or `?`
 - [x] Automatic compilation and authorized external-file reload
 - [x] Recursive folder discovery with deduplication and a 500-file limit
 - [x] Project and compiler-option session restoration

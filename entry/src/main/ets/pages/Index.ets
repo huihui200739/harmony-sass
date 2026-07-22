@@ -12,6 +12,9 @@ import {
   SassCompileRequest,
   SassCompileResponse,
   SassDebugMessage,
+  SassExportFinalizeEntry,
+  SassExportFinalizeRequest,
+  SassExportFinalizeResponse,
   SassSourceSpan,
   SassWarning
 } from '../compiler/DartSassRuntime';
@@ -875,7 +878,8 @@ struct Index {
       return;
     }
     try {
-      const compiled: SassBatchCompileResponse = await this.compileProjectEntries(false);
+      const compiled: SassBatchCompileResponse =
+        await this.compileProjectEntries(this.sourceMapEnabled);
       if (!compiled.ok) {
         this.showBatchCompileErrors(compiled);
         return;
@@ -883,20 +887,63 @@ struct Index {
       const entryPaths: string[] = compiled.results.map(
         (entry: SassBatchCompileResult): string => entry.entryPath
       );
-      const fileNames: string[] = SassProject.outputFileNames(entryPaths, '.css');
-      const uris: string[] = await this.chooseSaveUris(fileNames, 'CSS|.css');
+      const cssFileNames: string[] = SassProject.outputFileNames(entryPaths, '.css');
+      if (!this.sourceMapEnabled) {
+        const uris: string[] = await this.chooseSaveUris(cssFileNames, 'CSS|.css');
+        if (uris.length === 0) {
+          return;
+        }
+        if (uris.length !== compiled.results.length) {
+          throw new Error('系统返回的保存位置数量与编译入口数量不一致。');
+        }
+        for (let index: number = 0; index < compiled.results.length; index++) {
+          await this.writeText(uris[index], compiled.results[index].css ?? '');
+        }
+        this.statusMessage = compiled.results.length > 1
+          ? `CSS 已批量导出 · ${compiled.results.length} 个入口`
+          : `CSS 已导出 · ${cssFileNames[0]}`;
+        this.isSuccessful = true;
+        return;
+      }
+
+      const mapFileNames: string[] =
+        SassProject.outputFileNames(entryPaths, '.css.map');
+      const fileNames: string[] = [];
+      for (let index: number = 0; index < cssFileNames.length; index++) {
+        fileNames.push(cssFileNames[index]);
+        fileNames.push(mapFileNames[index]);
+      }
+      const uris: string[] = await this.chooseSaveUris(fileNames, '');
       if (uris.length === 0) {
         return;
       }
-      if (uris.length !== compiled.results.length) {
+      if (uris.length !== compiled.results.length * 2) {
         throw new Error('系统返回的保存位置数量与编译入口数量不一致。');
       }
+      const entries: SassExportFinalizeEntry[] = [];
       for (let index: number = 0; index < compiled.results.length; index++) {
-        await this.writeText(uris[index], compiled.results[index].css ?? '');
+        entries.push({
+          css: compiled.results[index].css ?? '',
+          sourceMap: compiled.results[index].sourceMap ?? '',
+          cssFileName: SassProject.fileNameFromUri(uris[index * 2]),
+          sourceMapFileName: SassProject.fileNameFromUri(uris[index * 2 + 1])
+        });
+      }
+      const finalized: SassExportFinalizeResponse =
+        await this.finalizeExports(entries);
+      if (finalized.results.length !== compiled.results.length) {
+        throw new Error('Dart Sass 返回的导出文件数量与编译入口数量不一致。');
+      }
+      for (let index: number = 0; index < finalized.results.length; index++) {
+        await this.writeText(uris[index * 2], finalized.results[index].css);
+        await this.writeText(
+          uris[index * 2 + 1],
+          finalized.results[index].sourceMap
+        );
       }
       this.statusMessage = compiled.results.length > 1
-        ? `CSS 已批量导出 · ${compiled.results.length} 个入口`
-        : `CSS 已导出 · ${fileNames[0]}`;
+        ? `CSS 与 Source Map 已批量导出 · ${compiled.results.length} 个入口`
+        : `CSS 与 Source Map 已导出 · ${cssFileNames[0]}`;
       this.isSuccessful = true;
     } catch (error) {
       this.showActionError('导出 CSS 失败', error);
@@ -926,8 +973,30 @@ struct Index {
       if (uris.length !== compiled.results.length) {
         throw new Error('系统返回的保存位置数量与编译入口数量不一致。');
       }
+      const entries: SassExportFinalizeEntry[] = [];
       for (let index: number = 0; index < compiled.results.length; index++) {
-        await this.writeText(uris[index], compiled.results[index].sourceMap ?? '');
+        const sourceMapFileName: string =
+          SassProject.fileNameFromUri(uris[index]);
+        const cssFileName: string = sourceMapFileName.endsWith('.map')
+          ? sourceMapFileName.slice(0, sourceMapFileName.length - 4)
+          : SassProject.outputFileNames(
+            [compiled.results[index].entryPath],
+            '.css'
+          )[0];
+        entries.push({
+          css: compiled.results[index].css ?? '',
+          sourceMap: compiled.results[index].sourceMap ?? '',
+          cssFileName,
+          sourceMapFileName
+        });
+      }
+      const finalized: SassExportFinalizeResponse =
+        await this.finalizeExports(entries);
+      if (finalized.results.length !== compiled.results.length) {
+        throw new Error('Dart Sass 返回的导出文件数量与编译入口数量不一致。');
+      }
+      for (let index: number = 0; index < finalized.results.length; index++) {
+        await this.writeText(uris[index], finalized.results[index].sourceMap);
       }
       this.statusMessage = compiled.results.length > 1
         ? `Source Map 已批量导出 · ${compiled.results.length} 个入口`
@@ -962,6 +1031,19 @@ struct Index {
     const script: string = DartSassRuntime.createBatchCompileScript(request);
     const payload: string = await this.controller.runJavaScript(script);
     return DartSassRuntime.parseBatchResponse(payload);
+  }
+
+  private async finalizeExports(
+    entries: SassExportFinalizeEntry[]
+  ): Promise<SassExportFinalizeResponse> {
+    const request: SassExportFinalizeRequest = {
+      style: this.outputStyle,
+      entries
+    };
+    const script: string =
+      DartSassRuntime.createFinalizeExportsScript(request);
+    const payload: string = await this.controller.runJavaScript(script);
+    return DartSassRuntime.parseFinalizeExportsResponse(payload);
   }
 
   private showBatchCompileErrors(compiled: SassBatchCompileResponse): void {
@@ -1011,7 +1093,9 @@ struct Index {
     const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
     const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
     options.newFileNames = fileNames;
-    options.fileSuffixChoices = [suffixChoice];
+    if (suffixChoice.length > 0) {
+      options.fileSuffixChoices = [suffixChoice];
+    }
     return await documentPicker.save(options);
   }
 

@@ -100,6 +100,27 @@ export interface SassBatchCompileResponse {
   results: SassBatchCompileResult[];
 }
 
+export interface SassExportFinalizeEntry {
+  css: string;
+  sourceMap: string;
+  cssFileName: string;
+  sourceMapFileName: string;
+}
+
+export interface SassExportFinalizeRequest {
+  style: string;
+  entries: SassExportFinalizeEntry[];
+}
+
+export interface SassFinalizedExportEntry {
+  css: string;
+  sourceMap: string;
+}
+
+export interface SassExportFinalizeResponse {
+  results: SassFinalizedExportEntry[];
+}
+
 export class DartSassRuntime {
   static createCompileScript(source: string): string {
     const request: SassCompileRequest = {
@@ -133,6 +154,10 @@ export class DartSassRuntime {
     return `globalThis.harmonySass.compileBatch(${JSON.stringify(request)})`;
   }
 
+  static createFinalizeExportsScript(request: SassExportFinalizeRequest): string {
+    return `globalThis.harmonySass.finalizeExports(${JSON.stringify(request)})`;
+  }
+
   static parseResponse(payload: string): SassCompileResponse {
     const decoded: SassCompileResponse | string =
       JSON.parse(payload) as SassCompileResponse | string;
@@ -147,6 +172,15 @@ export class DartSassRuntime {
       JSON.parse(payload) as SassBatchCompileResponse | string;
     if (typeof decoded === 'string') {
       return JSON.parse(decoded) as SassBatchCompileResponse;
+    }
+    return decoded;
+  }
+
+  static parseFinalizeExportsResponse(payload: string): SassExportFinalizeResponse {
+    const decoded: SassExportFinalizeResponse | string =
+      JSON.parse(payload) as SassExportFinalizeResponse | string;
+    if (typeof decoded === 'string') {
+      return JSON.parse(decoded) as SassExportFinalizeResponse;
     }
     return decoded;
   }
