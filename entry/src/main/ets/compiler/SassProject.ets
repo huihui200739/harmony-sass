@@ -32,7 +32,34 @@ export class SassProject {
     if (lowerPath.endsWith('.css')) {
       return 'css';
     }
+    if (SassProject.isPackageManifestPath(path)) {
+      return 'json';
+    }
     return 'scss';
+  }
+
+  static isStylesheetPath(path: string): boolean {
+    const lowerPath: string = SassProject.normalizePath(path).toLowerCase();
+    return lowerPath.endsWith('.scss') ||
+      lowerPath.endsWith('.sass') ||
+      lowerPath.endsWith('.css');
+  }
+
+  static isPackageManifestPath(path: string): boolean {
+    const normalized: string = SassProject.normalizePath(path);
+    const name: string = normalized.split('/').pop() ?? normalized;
+    return name.toLowerCase() === 'package.json';
+  }
+
+  static isProjectFilePath(path: string): boolean {
+    return SassProject.isStylesheetPath(path) ||
+      SassProject.isPackageManifestPath(path);
+  }
+
+  static editableStylesheetFiles(files: SassEditorFile[]): SassEditorFile[] {
+    return files.filter((file: SassEditorFile): boolean =>
+      SassProject.isStylesheetPath(file.path)
+    );
   }
 
   static fileNameFromUri(uri: string): string {
@@ -188,11 +215,8 @@ export class SassProject {
     for (const file of files) {
       const normalized: string = SassProject.normalizePath(file.path);
       const name: string = normalized.split('/').pop() ?? normalized;
-      const lowerName: string = name.toLowerCase();
       if (name.startsWith('_') ||
-        (!lowerName.endsWith('.scss') &&
-          !lowerName.endsWith('.sass') &&
-          !lowerName.endsWith('.css'))) {
+        !SassProject.isStylesheetPath(normalized)) {
         continue;
       }
       entries.push(normalized);

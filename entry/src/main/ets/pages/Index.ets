@@ -178,22 +178,27 @@ struct Index {
         }
       }
       if (restoredFiles.length > 0) {
-        this.files = SassProject.rebaseUriFiles(restoredFiles);
-        let activeIndex: number = 0;
-        if (typeof savedActiveUriValue === 'string') {
-          for (let index: number = 0; index < this.files.length; index++) {
-            if (this.files[index].uri === savedActiveUriValue) {
-              activeIndex = index;
-              break;
+        const rebasedFiles: SassEditorFile[] =
+          SassProject.rebaseUriFiles(restoredFiles);
+        const editableFiles: SassEditorFile[] =
+          SassProject.editableStylesheetFiles(rebasedFiles);
+        if (editableFiles.length > 0) {
+          this.files = rebasedFiles;
+          let activeFile: SassEditorFile = editableFiles[0];
+          if (typeof savedActiveUriValue === 'string') {
+            for (const file of editableFiles) {
+              if (file.uri === savedActiveUriValue) {
+                activeFile = file;
+                break;
+              }
             }
           }
+          this.activePath = activeFile.path;
+          this.source = activeFile.contents;
+          this.syntax = activeFile.syntax;
+          this.statusMessage = `已恢复项目 · ${this.files.length} 个文件`;
+          await this.rememberFileSignatures();
         }
-        const activeFile: SassEditorFile = this.files[activeIndex];
-        this.activePath = activeFile.path;
-        this.source = activeFile.contents;
-        this.syntax = activeFile.syntax;
-        this.statusMessage = `已恢复项目 · ${this.files.length} 个文件`;
-        await this.rememberFileSignatures();
       }
       if (this.autoCompile) {
         this.startFileWatch();
@@ -276,6 +281,8 @@ struct Index {
         entryPath: this.activePath,
         files: SassProject.compilerFiles(this.files, this.activePath),
         loadPaths: this.loadPaths(),
+        nodePackageImporter: true,
+        packageEntryPointDirectory: '',
         syntax: this.syntax,
         style: this.outputStyle,
         alertAscii: false,
@@ -572,16 +579,30 @@ struct Index {
     return this.files[index] ?? SAMPLE_FILE;
   }
 
+  private activeEditableFileIndex(): number {
+    const editableFiles: SassEditorFile[] =
+      SassProject.editableStylesheetFiles(this.files);
+    for (let index: number = 0; index < editableFiles.length; index++) {
+      if (editableFiles[index].path === this.activePath) {
+        return index;
+      }
+    }
+    return 0;
+  }
+
   private fileOptions(): SelectOption[] {
-    return this.files.map((file: SassEditorFile): SelectOption => ({ value: file.path }));
+    return SassProject.editableStylesheetFiles(this.files)
+      .map((file: SassEditorFile): SelectOption => ({ value: file.path }));
   }
 
   private selectFile(index: number): void {
-    if (index < 0 || index >= this.files.length) {
+    const editableFiles: SassEditorFile[] =
+      SassProject.editableStylesheetFiles(this.files);
+    if (index < 0 || index >= editableFiles.length) {
       return;
     }
     this.syncActiveSource();
-    const file: SassEditorFile = this.files[index];
+    const file: SassEditorFile = editableFiles[index];
     this.activePath = file.path;
     this.source = file.contents;
     this.syntax = file.syntax;
@@ -650,7 +671,7 @@ struct Index {
         }
       }
       if (combinedUris.length + virtualFileCount > MAX_PROJECT_FILES) {
-        throw new Error(`项目最多支持 ${MAX_PROJECT_FILES} 个 Sass/CSS 文件。`);
+        throw new Error(`项目最多支持 ${MAX_PROJECT_FILES} 个项目文件。`);
       }
       const dirtyUris: Set<string> = new Set<string>();
       const dirtyVirtualPaths: Set<string> = new Set<string>();
@@ -685,17 +706,23 @@ struct Index {
         }
       }
       this.dirtyPaths = rebasedDirtyPaths;
-      if (activeUri.length > 0) {
-        for (const file of this.files) {
-          if (file.uri === activeUri) {
-            this.activePath = file.path;
-            this.source = file.contents;
-            this.syntax = file.syntax;
-            break;
-          }
+      const editableFiles: SassEditorFile[] =
+        SassProject.editableStylesheetFiles(this.files);
+      if (editableFiles.length === 0) {
+        throw new Error('项目中没有可编译的 Sass/CSS 文件。');
+      }
+      let activeFile: SassEditorFile = editableFiles[0];
+      for (const file of editableFiles) {
+        if ((activeUri.length > 0 && file.uri === activeUri) ||
+          file.path === this.activePath) {
+          activeFile = file;
+          break;
         }
       }
-      this.statusMessage = `已载入项目 · 共 ${this.files.length} 个 Sass/CSS 文件`;
+      this.activePath = activeFile.path;
+      this.source = activeFile.contents;
+      this.syntax = activeFile.syntax;
+      this.statusMessage = `已载入项目 · 共 ${this.files.length} 个项目文件`;
       this.isSuccessful = true;
       await this.rememberFileSignatures();
       this.scheduleSessionSave();
@@ -715,7 +742,9 @@ struct Index {
     }
     const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
     const options: picker.DocumentSelectOptions = new picker.DocumentSelectOptions();
-    options.fileSuffixFilters = ['Sass/CSS|.scss,.sass,.css'];
+    options.fileSuffixFilters = allowFolders
+      ? ['Sass/CSS/Package|.scss,.sass,.css,.json']
+      : ['Sass/CSS|.scss,.sass,.css'];
     options.maxSelectNumber = maxSelectNumber;
     if (allowFolders) {
       options.selectMode = picker.DocumentSelectMode.MIXED;
@@ -729,12 +758,13 @@ struct Index {
     for (const uri of selectedUris) {
       const stat: fileIo.Stat = await fileIo.stat(uri);
       if (!stat.isDirectory()) {
-        if (!seen.has(uri)) {
+        const fileName: string = SassProject.fileNameFromUri(uri);
+        if (SassProject.isProjectFilePath(fileName) && !seen.has(uri)) {
           seen.add(uri);
           expanded.push(uri);
         }
         if (expanded.length > MAX_PROJECT_FILES) {
-          throw new Error(`一次最多载入 ${MAX_PROJECT_FILES} 个 Sass/CSS 文件。`);
+          throw new Error(`一次最多载入 ${MAX_PROJECT_FILES} 个项目文件。`);
         }
         continue;
       }
@@ -744,7 +774,7 @@ struct Index {
           recursion: true,
           listNum: MAX_PROJECT_FILES + 1,
           filter: {
-            suffix: ['.scss', '.sass', '.css']
+            suffix: ['.scss', '.sass', '.css', '.json']
           }
         });
       } catch (error) {
@@ -755,17 +785,14 @@ struct Index {
       relativePaths.sort();
       for (const relativePath of relativePaths) {
         const normalized: string = SassProject.normalizePath(relativePath);
-        const lowerPath: string = normalized.toLowerCase();
-        if (lowerPath.endsWith('.scss') ||
-          lowerPath.endsWith('.sass') ||
-          lowerPath.endsWith('.css')) {
+        if (SassProject.isProjectFilePath(normalized)) {
           const childUri: string = this.joinDocumentUri(uri, normalized);
           if (!seen.has(childUri)) {
             seen.add(childUri);
             expanded.push(childUri);
           }
           if (expanded.length > MAX_PROJECT_FILES) {
-            throw new Error(`一次最多载入 ${MAX_PROJECT_FILES} 个 Sass/CSS 文件。`);
+            throw new Error(`一次最多载入 ${MAX_PROJECT_FILES} 个项目文件。`);
           }
         }
       }
@@ -918,6 +945,8 @@ struct Index {
       entryPaths,
       files: SassProject.compilerFiles(this.files, ''),
       loadPaths: this.loadPaths(),
+      nodePackageImporter: true,
+      packageEntryPointDirectory: '',
       style: this.outputStyle,
       alertAscii: false,
       alertColor: false,
@@ -1088,7 +1117,7 @@ struct Index {
           Button('打开').onClick((): void => { this.openSource(); }).height(34)
           Button('添加项目文件').onClick((): void => { this.addProjectFiles(); }).height(34)
           Select(this.fileOptions())
-            .selected(this.activeFileIndex())
+            .selected(this.activeEditableFileIndex())
             .value(this.activePath)
             .onSelect((index: number): void => this.selectFile(index))
             .width(190).height(34)

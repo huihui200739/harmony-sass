@@ -15,7 +15,8 @@ export default function dartSassRuntimeTest() {
       );
       expect(script).assertEqual(
         'globalThis.harmonySass.compileProject({"source":".a::before { content: \\"` ${value} \\\\\\"\\"; }",' +
-        '"entryPath":"stdin.scss","files":[],"loadPaths":[],"syntax":"scss","style":"expanded",' +
+        '"entryPath":"stdin.scss","files":[],"loadPaths":[],"nodePackageImporter":false,' +
+        '"packageEntryPointDirectory":"","syntax":"scss","style":"expanded",' +
         '"alertAscii":false,"alertColor":false,' +
         '"sourceMap":false,"sourceMapIncludeSources":true,"charset":true,"quietDeps":false,"verbose":false,' +
         '"fatalDeprecations":[],"futureDeprecations":[],"silenceDeprecations":[]})'
@@ -28,6 +29,8 @@ export default function dartSassRuntimeTest() {
         entryPath: 'src/app.scss',
         files: [{ path: 'src/_tokens.scss', contents: '$brand: blue;' }],
         loadPaths: ['src'],
+        nodePackageImporter: true,
+        packageEntryPointDirectory: 'src',
         syntax: 'scss',
         style: 'compressed',
         alertAscii: false,
@@ -46,6 +49,8 @@ export default function dartSassRuntimeTest() {
       expect(script.includes('src/_tokens.scss')).assertTrue();
       expect(script.includes('"sourceMap":true')).assertTrue();
       expect(script.includes('"fatalDeprecations":["import"]')).assertTrue();
+      expect(script.includes('"nodePackageImporter":true')).assertTrue();
+      expect(script.includes('"packageEntryPointDirectory":"src"')).assertTrue();
     });
 
     it('serializes and parses batch compilation', 0, (): void => {
@@ -56,6 +61,8 @@ export default function dartSassRuntimeTest() {
           { path: 'src/admin.scss', contents: '.admin { color: red; }' }
         ],
         loadPaths: [],
+        nodePackageImporter: true,
+        packageEntryPointDirectory: '',
         style: 'expanded',
         alertAscii: false,
         alertColor: false,
@@ -97,11 +104,15 @@ export default function dartSassRuntimeTest() {
     it('parses structured compiler errors', 0, (): void => {
       const response: SassCompileResponse = DartSassRuntime.parseResponse(
         '{"ok":false,"version":"1.101.3","error":{"message":"Undefined variable.",' +
-        '"formatted":"Undefined variable.","line":2,"column":8}}'
+        '"formatted":"Undefined variable.","sassStack":"app.scss 2:8  root stylesheet\\n",' +
+        '"line":2,"column":8}}'
       );
       expect(response.ok).assertFalse();
       expect(response.error?.line).assertEqual(2);
       expect(response.error?.column).assertEqual(8);
+      expect(response.error?.sassStack).assertEqual(
+        'app.scss 2:8  root stylesheet\n'
+      );
     });
 
     it('parses source maps, loaded URLs and warnings', 0, (): void => {

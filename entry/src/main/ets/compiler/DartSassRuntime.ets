@@ -14,6 +14,7 @@ export interface SassSourceSpan {
 export interface SassCompileError {
   message: string;
   formatted: string;
+  sassStack?: string;
   line: number;
   column: number;
   span?: SassSourceSpan;
@@ -43,6 +44,8 @@ export interface SassCompileRequest {
   entryPath: string;
   files: SassProjectFile[];
   loadPaths: string[];
+  nodePackageImporter: boolean;
+  packageEntryPointDirectory: string;
   syntax: string;
   style: string;
   alertAscii: boolean;
@@ -72,6 +75,8 @@ export interface SassBatchCompileRequest {
   entryPaths: string[];
   files: SassProjectFile[];
   loadPaths: string[];
+  nodePackageImporter: boolean;
+  packageEntryPointDirectory: string;
   style: string;
   alertAscii: boolean;
   alertColor: boolean;
@@ -102,6 +107,8 @@ export class DartSassRuntime {
       entryPath: 'stdin.scss',
       files: [],
       loadPaths: [],
+      nodePackageImporter: false,
+      packageEntryPointDirectory: '',
       syntax: 'scss',
       style: 'expanded',
       alertAscii: false,

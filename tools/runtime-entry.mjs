@@ -4,6 +4,7 @@ const DART_SASS_VERSION = '1.101.3';
 const VIRTUAL_SCHEME = 'harmony-sass:';
 const SUPPORTED_SYNTAXES = new Set(['scss', 'indented', 'css']);
 const SUPPORTED_STYLES = new Set(['expanded', 'compressed']);
+const STYLESHEET_EXTENSIONS = new Set(['.scss', '.sass', '.css']);
 
 function text(value) {
   return value === undefined || value === null ? '' : String(value);
@@ -14,6 +15,17 @@ function stringList(value) {
   return value
     .map(item => text(item).trim())
     .filter(item => item.length > 0);
+}
+
+function fatalDeprecationList(value) {
+  return stringList(value).map(item => {
+    if (!/^\d+\.\d+\.\d+$/.test(item)) return item;
+    try {
+      return sass.Version.parse(item);
+    } catch {
+      return item;
+    }
+  });
 }
 
 function decode(value) {
@@ -142,6 +154,7 @@ function serializeError(error) {
     error: {
       message: text(error && (error.sassMessage || error.message || error)),
       formatted: text(error && (error.message || error)),
+      sassStack: text(error && error.sassStack) || undefined,
       line: span ? span.start.line + 1 : 0,
       column: span ? span.start.column + 1 : 0,
       span: serializeSpan(span)
@@ -158,21 +171,26 @@ function normalizeRequest(value) {
     : syntax === 'css'
       ? 'stdin.css'
       : 'stdin.scss';
+  const entryPath = normalizePath(request.entryPath || defaultEntry) || defaultEntry;
   return {
     source: text(request.source),
-    entryPath: normalizePath(request.entryPath || defaultEntry) || defaultEntry,
+    entryPath,
     files: Array.isArray(request.files) ? request.files : [],
     loadPaths: Array.isArray(request.loadPaths) ? request.loadPaths : [],
+    nodePackageImporter: request.nodePackageImporter === true,
+    packageEntryPointDirectory: normalizePath(
+      request.packageEntryPointDirectory || dirname(entryPath)
+    ),
     syntax,
     style,
     alertAscii: request.alertAscii === true,
     alertColor: request.alertColor === true,
     sourceMap: request.sourceMap === true,
-    sourceMapIncludeSources: request.sourceMapIncludeSources !== false,
+    sourceMapIncludeSources: request.sourceMapIncludeSources === true,
     charset: request.charset !== false,
     quietDeps: request.quietDeps === true,
     verbose: request.verbose === true,
-    fatalDeprecations: stringList(request.fatalDeprecations),
+    fatalDeprecations: fatalDeprecationList(request.fatalDeprecations),
     futureDeprecations: stringList(request.futureDeprecations),
     silenceDeprecations: stringList(request.silenceDeprecations)
   };
@@ -206,8 +224,411 @@ function resolveCandidate(files, requestedPath, fromImport) {
   return resolveStem(files, joinPath(stem, 'index'), '', fromImport);
 }
 
-function createImporter(files, loadPaths) {
-  const normalizedLoadPaths = loadPaths.map(normalizePath);
+function extension(path) {
+  const name = basename(path);
+  const dot = name.lastIndexOf('.');
+  return dot < 0 ? '' : name.slice(dot);
+}
+
+function withoutExtension(path) {
+  const suffix = extension(path);
+  return suffix ? path.slice(0, -suffix.length) : path;
+}
+
+function importOnlyPath(files, path, fromImport) {
+  if (!fromImport) return normalizePath(path);
+  const suffix = extension(path);
+  if (!STYLESHEET_EXTENSIONS.has(suffix)) return normalizePath(path);
+  const importOnly = `${withoutExtension(path)}.import${suffix}`;
+  return files.has(importOnly) ? importOnly : normalizePath(path);
+}
+
+function directoryExists(files, path) {
+  const prefix = `${normalizePath(path)}/`;
+  for (const filePath of files.keys()) {
+    if (filePath.startsWith(prefix)) return true;
+  }
+  return false;
+}
+
+function packageNameAndSubpath(specifier) {
+  const parts = specifier.split('/').filter(part => part.length > 0);
+  let packageName = parts.shift() || '';
+  if (packageName.startsWith('@') && parts.length > 0) {
+    packageName = `${packageName}/${parts.shift()}`;
+  }
+  return {
+    packageName,
+    subpath: parts.length > 0 ? parts.join('/') : null
+  };
+}
+
+function resolvePackageRoot(files, packageName, baseDirectory) {
+  let directory = normalizePath(baseDirectory);
+  while (true) {
+    const candidate = joinPath(
+      joinPath(directory, 'node_modules'),
+      packageName
+    );
+    if (directoryExists(files, candidate)) return candidate;
+    if (!directory) return null;
+    directory = dirname(directory);
+  }
+}
+
+function exportVariants(subpath, addIndex = false) {
+  if (subpath === null && !addIndex) return [null];
+
+  let path = subpath;
+  if (path === null) {
+    path = 'index';
+  } else if (addIndex) {
+    path = joinPath(path, 'index');
+  }
+
+  const paths = STYLESHEET_EXTENSIONS.has(extension(path))
+    ? [path]
+    : [path, `${path}.scss`, `${path}.sass`, `${path}.css`];
+  const name = basename(path);
+  if (name.startsWith('_')) return paths;
+  return [
+    ...paths,
+    ...paths.map(candidate =>
+      joinPath(dirname(candidate), `_${basename(candidate)}`)
+    )
+  ];
+}
+
+function compareExpansionKeys(keyA, keyB) {
+  const baseLengthA = keyA.includes('*') ? keyA.indexOf('*') + 1 : keyA.length;
+  const baseLengthB = keyB.includes('*') ? keyB.indexOf('*') + 1 : keyB.length;
+  if (baseLengthA > baseLengthB) return -1;
+  if (baseLengthB > baseLengthA) return 1;
+  if (!keyA.includes('*')) return 1;
+  if (!keyB.includes('*')) return -1;
+  if (keyA.length > keyB.length) return -1;
+  if (keyB.length > keyA.length) return 1;
+  return 0;
+}
+
+function resolvePackageTarget(files, target, packageRoot, patternMatch) {
+  if (typeof target === 'string') {
+    if (!target.startsWith('./')) {
+      throw new Error(
+        `Export '${target}' must be a path relative to the package root at '${packageRoot}'.`
+      );
+    }
+    const replaced = patternMatch === undefined
+      ? target
+      : target.replace('*', patternMatch);
+    const path = joinPath(packageRoot, replaced.slice(2));
+    return patternMatch === undefined || files.has(path) ? path : null;
+  }
+
+  if (Array.isArray(target)) {
+    for (const value of target) {
+      if (value === null) continue;
+      const resolved = resolvePackageTarget(
+        files,
+        value,
+        packageRoot,
+        patternMatch
+      );
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+
+  if (target && typeof target === 'object') {
+    for (const [condition, value] of Object.entries(target)) {
+      if (!['sass', 'style', 'default'].includes(condition) || value === null) {
+        continue;
+      }
+      const resolved = resolvePackageTarget(
+        files,
+        value,
+        packageRoot,
+        patternMatch
+      );
+      if (resolved) return resolved;
+    }
+    return null;
+  }
+
+  throw new Error(
+    `Invalid 'exports' value ${JSON.stringify(target)} in ${joinPath(packageRoot, 'package.json')}.`
+  );
+}
+
+function mainExport(exportsValue) {
+  if (typeof exportsValue === 'string') {
+    return exportsValue;
+  }
+  if (Array.isArray(exportsValue)) {
+    return exportsValue.every(value => typeof value === 'string')
+      ? exportsValue
+      : null;
+  }
+  if (!exportsValue || typeof exportsValue !== 'object') return null;
+  const keys = Object.keys(exportsValue);
+  if (keys.every(key => !key.startsWith('.'))) return exportsValue;
+  return exportsValue['.'] ?? null;
+}
+
+function resolvePackageExportsVariants(
+  files,
+  packageRoot,
+  variants,
+  exportsValue,
+  subpath,
+  packageName
+) {
+  if (exportsValue && typeof exportsValue === 'object' &&
+    !Array.isArray(exportsValue)) {
+    const keys = Object.keys(exportsValue);
+    if (keys.some(key => key.startsWith('.')) &&
+      keys.some(key => !key.startsWith('.'))) {
+      throw new Error(
+        `\`exports\` in ${packageName} can not have both conditions and paths ` +
+        `at the same level.\nFound ${keys.map(key => `"${key}"`).join(',')} in ` +
+        `${joinPath(packageRoot, 'package.json')}.`
+      );
+    }
+  }
+
+  const matches = [];
+  for (const variant of variants) {
+    let resolved = null;
+    if (variant === null) {
+      const target = mainExport(exportsValue);
+      if (target !== null) {
+        resolved = resolvePackageTarget(files, target, packageRoot);
+      }
+    } else if (exportsValue && typeof exportsValue === 'object' &&
+      !Array.isArray(exportsValue) &&
+      Object.keys(exportsValue).some(key => key.startsWith('.'))) {
+      const matchKey = `./${variant}`;
+      if (Object.prototype.hasOwnProperty.call(exportsValue, matchKey) &&
+        exportsValue[matchKey] !== null &&
+        !matchKey.includes('*')) {
+        resolved = resolvePackageTarget(
+          files,
+          exportsValue[matchKey],
+          packageRoot
+        );
+      } else {
+        const expansionKeys = Object.keys(exportsValue)
+          .filter(key => (key.match(/\*/g) || []).length === 1)
+          .sort(compareExpansionKeys);
+        for (const expansionKey of expansionKeys) {
+          const [patternBase, patternTrailer] = expansionKey.split('*');
+          if (!matchKey.startsWith(patternBase) || matchKey === patternBase) {
+            continue;
+          }
+          if (patternTrailer &&
+            (!matchKey.endsWith(patternTrailer) ||
+              matchKey.length < expansionKey.length)) {
+            continue;
+          }
+          const target = exportsValue[expansionKey];
+          if (target === null) continue;
+          const patternMatch = matchKey.slice(
+            patternBase.length,
+            matchKey.length - patternTrailer.length
+          );
+          resolved = resolvePackageTarget(
+            files,
+            target,
+            packageRoot,
+            patternMatch
+          );
+          break;
+        }
+      }
+    }
+
+    if (resolved && !matches.includes(resolved)) matches.push(resolved);
+  }
+
+  if (matches.length > 1) {
+    throw new Error(
+      `Unable to determine which of multiple potential resolutions found for ` +
+      `${subpath ?? 'root'} in ${packageName} should be used. \n\nFound:\n` +
+      matches.join('\n')
+    );
+  }
+  return matches[0] || null;
+}
+
+function resolvePackageExports(
+  files,
+  packageRoot,
+  subpath,
+  manifest,
+  packageName
+) {
+  const exportsValue = manifest.exports;
+  if (exportsValue === undefined || exportsValue === null) return null;
+
+  const direct = resolvePackageExportsVariants(
+    files,
+    packageRoot,
+    exportVariants(subpath),
+    exportsValue,
+    subpath,
+    packageName
+  );
+  if (direct) return direct;
+  if (subpath !== null && extension(subpath)) return null;
+  return resolvePackageExportsVariants(
+    files,
+    packageRoot,
+    exportVariants(subpath, true),
+    exportsValue,
+    subpath,
+    packageName
+  );
+}
+
+function resolvePackageRootValue(files, packageRoot, manifest, fromImport) {
+  for (const key of ['sass', 'style']) {
+    const value = manifest[key];
+    if (typeof value === 'string' &&
+      STYLESHEET_EXTENSIONS.has(extension(value))) {
+      return importOnlyPath(files, joinPath(packageRoot, value), fromImport);
+    }
+  }
+  return resolveCandidate(files, joinPath(packageRoot, 'index'), fromImport);
+}
+
+function createNodePackageImporter(files, entryPointDirectory) {
+  return {
+    nonCanonicalScheme: 'pkg',
+
+    canonicalize(url, context) {
+      if (!url.startsWith('pkg:')) {
+        let requestedPath = '';
+        if (url.startsWith(VIRTUAL_SCHEME)) {
+          requestedPath = pathFromVirtualUrl(new URL(url));
+        } else if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
+          return null;
+        } else if (context.containingUrl &&
+          context.containingUrl.protocol === VIRTUAL_SCHEME) {
+          requestedPath = joinPath(
+            dirname(pathFromVirtualUrl(context.containingUrl)),
+            url
+          );
+        } else {
+          return null;
+        }
+        const resolved = resolveCandidate(
+          files,
+          requestedPath,
+          context.fromImport
+        );
+        return resolved ? virtualUrl(resolved) : null;
+      }
+
+      const parsed = new URL(url);
+      if (parsed.host || parsed.username || parsed.password || parsed.port) {
+        throw new Error(
+          'A pkg: URL must not have a host, port, username or password.'
+        );
+      }
+      if (parsed.pathname.startsWith('/')) {
+        throw new Error("A pkg: URL's path must not begin with /.");
+      }
+      if (!parsed.pathname) {
+        throw new Error('A pkg: URL must not have an empty path.');
+      }
+      if (parsed.search || parsed.hash) {
+        throw new Error('A pkg: URL must not have a query or fragment.');
+      }
+
+      const { packageName, subpath } = packageNameAndSubpath(parsed.pathname);
+      if (packageName.startsWith('.') ||
+        packageName.includes('\\') ||
+        packageName.includes('%') ||
+        (packageName.startsWith('@') && !packageName.includes('/'))) {
+        return null;
+      }
+
+      const baseDirectory = context.containingUrl &&
+        context.containingUrl.protocol === VIRTUAL_SCHEME
+        ? dirname(pathFromVirtualUrl(context.containingUrl))
+        : entryPointDirectory;
+      const packageRoot = resolvePackageRoot(
+        files,
+        packageName,
+        baseDirectory
+      );
+      if (!packageRoot) return null;
+
+      const manifestPath = joinPath(packageRoot, 'package.json');
+      const manifestFile = files.get(manifestPath);
+      if (!manifestFile) {
+        throw new Error(`Failed to read ${manifestPath} for "pkg:${packageName}".`);
+      }
+
+      let manifest;
+      try {
+        manifest = JSON.parse(manifestFile.contents);
+      } catch (error) {
+        throw new Error(
+          `Failed to parse ${manifestPath} for "pkg:${packageName}": ${error}`
+        );
+      }
+      if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+        throw new Error(
+          `Failed to parse ${manifestPath} for "pkg:${packageName}": ` +
+          'package manifest must be an object.'
+        );
+      }
+
+      const fromImport = context.fromImport === true;
+      const exported = resolvePackageExports(
+        files,
+        packageRoot,
+        subpath,
+        manifest,
+        packageName
+      );
+      if (exported) {
+        const suffix = extension(exported);
+        if (!STYLESHEET_EXTENSIONS.has(suffix)) {
+          throw new Error(
+            `The export for '${subpath ?? 'root'}' in '${packageName}' resolved ` +
+            `to '${exported}', which is not a '.scss', '.sass', or '.css' file.`
+          );
+        }
+        return virtualUrl(importOnlyPath(files, exported, fromImport));
+      }
+
+      const resolved = subpath === null
+        ? resolvePackageRootValue(files, packageRoot, manifest, fromImport)
+        : resolveCandidate(
+          files,
+          joinPath(packageRoot, subpath),
+          fromImport
+        );
+      return resolved ? virtualUrl(resolved) : null;
+    },
+
+    load(canonicalUrl) {
+      if (canonicalUrl.protocol !== VIRTUAL_SCHEME) return null;
+      const path = pathFromVirtualUrl(canonicalUrl);
+      const file = files.get(path);
+      if (!file || !STYLESHEET_EXTENSIONS.has(extension(path))) return null;
+      return {
+        contents: file.contents,
+        syntax: syntaxForPath(path, file.syntax),
+        sourceMapUrl: canonicalUrl
+      };
+    }
+  };
+}
+
+function createImporter(files, rootsForUrl) {
   return {
     canonicalize(url, context) {
       if (url.startsWith('sass:')) return null;
@@ -226,15 +647,10 @@ function createImporter(files, loadPaths) {
         roots.push(
           joinPath(dirname(pathFromVirtualUrl(context.containingUrl)), url)
         );
-        for (const loadPath of normalizedLoadPaths) {
-          roots.push(joinPath(loadPath, url));
-        }
       } else {
         roots.push(normalizePath(url));
-        for (const loadPath of normalizedLoadPaths) {
-          roots.push(joinPath(loadPath, url));
-        }
       }
+      roots.push(...rootsForUrl(url));
 
       for (const root of roots) {
         const resolved = resolveCandidate(files, root, context.fromImport);
@@ -257,12 +673,33 @@ function createImporter(files, loadPaths) {
   };
 }
 
+function createRelativeImporter(files) {
+  return createImporter(files, () => []);
+}
+
+function createLoadPathImporter(files, loadPaths) {
+  const normalizedLoadPaths = loadPaths.map(normalizePath);
+  return createImporter(
+    files,
+    url => normalizedLoadPaths.map(loadPath => joinPath(loadPath, url))
+  );
+}
+
 function compileProjectResult(value) {
   const request = normalizeRequest(value);
   const files = createProject(request);
   const warnings = [];
   const debugMessages = [];
-  const importer = createImporter(files, request.loadPaths);
+  const importer = createRelativeImporter(files);
+  const importers = [];
+  if (request.nodePackageImporter) {
+    importers.push(
+      createNodePackageImporter(files, request.packageEntryPointDirectory)
+    );
+  }
+  if (request.loadPaths.length > 0) {
+    importers.push(createLoadPathImporter(files, request.loadPaths));
+  }
 
   try {
     const result = sass.compileString(request.source, {
@@ -279,7 +716,8 @@ function compileProjectResult(value) {
       fatalDeprecations: request.fatalDeprecations,
       futureDeprecations: request.futureDeprecations,
       silenceDeprecations: request.silenceDeprecations,
-      importers: [importer],
+      importer,
+      importers,
       logger: {
         warn(message, options) {
           warnings.push({

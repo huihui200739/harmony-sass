@@ -8,6 +8,12 @@ export default function sassProjectTest() {
       expect(SassProject.syntaxForPath('styles/main.scss')).assertEqual('scss');
       expect(SassProject.syntaxForPath('styles/main.sass')).assertEqual('indented');
       expect(SassProject.syntaxForPath('styles/reset.css')).assertEqual('css');
+      expect(SassProject.syntaxForPath('node_modules/theme/package.json')).assertEqual('json');
+      expect(SassProject.isStylesheetPath('styles/main.scss')).assertTrue();
+      expect(SassProject.isPackageManifestPath('node_modules/theme/package.json')).assertTrue();
+      expect(SassProject.isPackageManifestPath('config.json')).assertFalse();
+      expect(SassProject.isProjectFilePath('node_modules/theme/package.json')).assertTrue();
+      expect(SassProject.isProjectFilePath('config.json')).assertFalse();
     });
 
     it('derives relative virtual paths from selected URIs', 0, (): void => {
@@ -85,6 +91,12 @@ export default function sassProjectTest() {
           uri: 'file://admin/app.scss',
           contents: '',
           syntax: 'scss'
+        },
+        {
+          path: 'node_modules/theme/package.json',
+          uri: 'file://node_modules/theme/package.json',
+          contents: '{"sass":"index.scss"}',
+          syntax: 'json'
         }
       ];
       const entries: string[] = SassProject.entryPaths(files);
@@ -94,6 +106,16 @@ export default function sassProjectTest() {
       const names: string[] = SassProject.outputFileNames(entries, '.css');
       expect(names[0]).assertEqual('src-app.css');
       expect(names[1]).assertEqual('admin-app.css');
+      const editableFiles: SassEditorFile[] =
+        SassProject.editableStylesheetFiles(files);
+      expect(editableFiles.length).assertEqual(3);
+      expect(editableFiles[0].path).assertEqual('src/app.scss');
+      expect(editableFiles[2].path).assertEqual('admin/app.scss');
+      const compilerFiles = SassProject.compilerFiles(files, 'src/app.scss');
+      expect(compilerFiles.length).assertEqual(3);
+      expect(compilerFiles[2].path).assertEqual(
+        'node_modules/theme/package.json'
+      );
     });
 
     it('keeps a manually selected syntax in the project model', 0, (): void => {

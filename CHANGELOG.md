@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented here.
 
+## 0.6.0 - 2026-07-22
+
+- Added a virtual-project `NodePackageImporter` based on the official Dart Sass
+  `1.101.3` implementation.
+- Added `pkg:` URL resolution, nearest `node_modules` lookup, scoped packages,
+  package `exports`, wildcard exports and manifest-order Sass conditions.
+- Added package `sass`/`style`, partial, index, direct subpath and import-only
+  fallbacks.
+- Added package-internal relative imports, nested package dependencies and
+  official `quietDeps` classification for package stylesheets.
+- Added project loading for `package.json` manifests without exposing manifests
+  as editable Sass entries or changing the two-pane editor layout.
+- Added official comparisons for package success paths and package error
+  boundaries.
+
+## 0.5.1 - 2026-07-22
+
+- Added official Dart Sass compiler-version values for `fatalDeprecations`.
+- Corrected `sourceMapIncludeSources` to use the official default while
+  retaining embedded sources for the HarmonyOS editor and exports.
+- Separated entry-relative and virtual load-path importers so `quietDeps`
+  classifies dependency deprecations like official Dart Sass.
+- Added structured `sassStack` data to compiler errors.
+- Added official package comparisons for Source Map defaults, fatal
+  deprecation versions and dependency warning behavior.
+
 ## 0.5.0 - 2026-07-22
 
 - Corrected virtual importer precedence to match official Dart Sass for direct
