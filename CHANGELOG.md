@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here.
 
+## 0.3.0 - 2026-07-22
+
+- Added an in-memory multi-file project importer backed by official Dart Sass.
+- Added relative `@use`, `@forward`, `@import`, partial, `_index` and
+  import-only file resolution.
+- Added SCSS, indented Sass and CSS syntax modes with expanded or compressed
+  output.
+- Added Source Maps, loaded URL reporting, compiler warnings and complete
+  structured error spans.
+- Added HarmonyOS file open, project file selection, save, save-as, CSS copy,
+  CSS export and Source Map export.
+- Added active entry switching, virtual load paths, automatic compilation and
+  PC keyboard shortcuts while preserving the two-pane editor layout.
+- Added project path/model tests and end-to-end runtime project fixtures.
+
 ## 0.2.0 - 2026-07-21
 
 - Replaced the handwritten `ScssLite` subset with official Dart Sass 1.101.3.
@@ -11,7 +26,7 @@ All notable changes to this project are documented here.
 - Added structured Dart Sass errors with line and column information.
 - Added upstream compatibility fixtures and bundled third-party notices.
 
-## 0.1.0 — 2026-07-12
+## 0.1.0 - 2026-07-12
 
 - First open-source MVP for HarmonyOS PC.
 - Added native ArkTS SCSS Lite compiler core.

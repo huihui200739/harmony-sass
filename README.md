@@ -1,28 +1,43 @@
 # Harmony Sass
 
-**Harmony Sass** is a HarmonyOS PC SCSS editor that runs the official
+**Harmony Sass** is a HarmonyOS PC Sass editor that runs the official
 [Dart Sass](https://github.com/sass/dart-sass) implementation locally.
 
-The visible ArkTS two-pane interface remains unchanged from the original MVP.
-Compilation is no longer handled by the former handwritten `ScssLite` parser.
-Instead, the official Dart Sass JavaScript distribution is bundled into the
-application and executed in an invisible ArkWeb runtime.
+The application keeps the original ArkTS two-pane editor layout. Sass language
+behavior is provided by the official Dart Sass JavaScript distribution rather
+than a rewritten or reduced compiler.
 
 ## Current implementation
 
-- Native HarmonyOS ArkTS editor UI
+- Native HarmonyOS ArkTS two-pane editor UI
 - Official Dart Sass `1.101.3` compiler
-- Variables, nesting, parent selectors and selector lists
-- Mixins, functions, conditionals, loops and arithmetic
-- At-rules including `@media`
-- Built-in modules such as `sass:color`, `sass:math` and `sass:list`
-- Structured compiler errors with line and column information
-- No network or remote compilation service
+- Full Dart Sass language behavior, including modules, mixins, functions,
+  control flow, arithmetic, at-rules and built-in `sass:*` modules
+- Multi-file virtual projects with up to 500 selected `.scss`, `.sass` or
+  `.css` files
+- Relative `@use`, `@forward` and legacy `@import`
+- Sass partials, directory `_index` files and import-only `.import.scss` files
+- Configurable virtual load paths
+- SCSS, indented Sass and CSS input syntax
+- Expanded and compressed CSS output
+- Optional Source Map generation with embedded sources
+- Source file open, save and save-as
+- CSS copy and export, plus Source Map export
+- Manual or debounced automatic compilation
+- Structured errors with full Dart Sass spans and warning counts
+- PC shortcuts: `Ctrl+O`, `Ctrl+S`, `Ctrl+Shift+S` and `Ctrl+Enter`
+- No network service and no remote compilation
 
-The current editor compiles one in-memory SCSS document with Dart Sass
-`compileString()`. Built-in `sass:*` modules work. Imports from project files
-will require a HarmonyOS file picker and a virtual importer, which are tracked
-separately in the roadmap.
+## Project workflow
+
+Use **打开** for a single entry file. Use **添加项目文件** to select the entry,
+partials and dependencies together. Harmony Sass derives relative virtual paths
+from the selected file URIs and lets any loaded file become the compilation
+entry from the file selector.
+
+All project files are passed to an in-memory Dart Sass importer. The official
+compiler therefore resolves project imports without uploading source code or
+requiring filesystem access from ArkWeb.
 
 ## Upstream source
 
@@ -33,7 +48,8 @@ separately in the roadmap.
 
 The generated runtime in `entry/src/main/resources/rawfile` is built from the
 official `sass` npm distribution. Version and build dependencies are pinned in
-`tools/package.json`.
+`tools/package.json`. Changes in this repository are published only to
+`huihui200739/harmony-sass`; the upstream Dart Sass repository is not modified.
 
 ## Build
 
@@ -68,17 +84,17 @@ configuration and HarmonyOS release credentials.
 
 ## Runtime verification
 
-The compatibility suite compares the bundled browser runtime byte-for-behavior
-with the same pinned official Dart Sass package:
+The compatibility suite compares the bundled browser runtime with the same
+pinned official Dart Sass package:
 
 ```bash
 npm --prefix tools ci
 npm --prefix tools run verify
 ```
 
-Fixtures cover variables and nesting, mixins, media queries, conditionals,
-arithmetic, custom functions, built-in modules, quoted punctuation, local
-variable scope and retained comments.
+Fixtures cover single-document Sass behavior and project workflows including
+partials, modules, forwarding, legacy imports, output styles, input syntaxes,
+Source Maps, loaded URLs, warnings and structured errors.
 
 ## Licensing
 
