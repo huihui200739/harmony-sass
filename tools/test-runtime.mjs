@@ -80,6 +80,91 @@ for (const fixture of fixtures) {
   assert.equal(actual.version, sassPackage.version);
 }
 
+const project = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "tokens"; @use "components/button"; .app { color: tokens.$brand; }',
+  entryPath: 'src/main.scss',
+  files: [
+    { path: 'src/_tokens.scss', contents: '$brand: #0a7bff;' },
+    {
+      path: 'src/components/_button.scss',
+      contents: '@use "../tokens"; .button { color: tokens.$brand; }'
+    }
+  ]
+}));
+assert.equal(project.ok, true, 'virtual project should compile');
+assert.match(project.css, /\.button/);
+assert.match(project.css, /\.app/);
+assert.equal(project.loadedUrls.length, 3);
+
+const forwarded = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "theme"; .card { color: theme.$brand; }',
+  entryPath: 'app.scss',
+  files: [
+    { path: '_colors.scss', contents: '$brand: rebeccapurple;' },
+    { path: '_theme.scss', contents: '@forward "colors";' }
+  ]
+}));
+assert.equal(forwarded.ok, true, '@forward should resolve virtual partials');
+assert.match(forwarded.css, /rebeccapurple/);
+
+const imported = JSON.parse(context.harmonySass.compileProject({
+  source: '@import "legacy";',
+  entryPath: 'app.scss',
+  files: [
+    { path: '_legacy.import.scss', contents: '.legacy { display: block; }' },
+    { path: '_legacy.scss', contents: '.wrong { display: none; }' }
+  ]
+}));
+assert.equal(imported.ok, true, '@import should prefer import-only files');
+assert.match(imported.css, /\.legacy/);
+assert.doesNotMatch(imported.css, /\.wrong/);
+
+const compressed = JSON.parse(context.harmonySass.compileProject({
+  source: '.card { color: red; }',
+  style: 'compressed'
+}));
+assert.equal(compressed.ok, true);
+assert.equal(compressed.css, '.card{color:red}');
+
+const indented = JSON.parse(context.harmonySass.compileProject({
+  source: '.card\n  color: red',
+  entryPath: 'app.sass',
+  syntax: 'indented'
+}));
+assert.equal(indented.ok, true);
+assert.match(indented.css, /color: red/);
+
+const css = JSON.parse(context.harmonySass.compileProject({
+  source: '.card { color: red; }',
+  entryPath: 'app.css',
+  syntax: 'css'
+}));
+assert.equal(css.ok, true);
+assert.match(css.css, /\.card/);
+
+const sourceMap = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "tokens"; .card { color: tokens.$brand; }',
+  entryPath: 'src/app.scss',
+  sourceMap: true,
+  files: [{
+    path: 'src/_tokens.scss',
+    contents: '$brand: blue; .tokens { color: $brand; }'
+  }]
+}));
+assert.equal(sourceMap.ok, true);
+assert.ok(sourceMap.sourceMap.length > 0);
+assert.deepEqual(
+  JSON.parse(sourceMap.sourceMap).sources.sort(),
+  ['harmony-sass:/src/_tokens.scss', 'harmony-sass:/src/app.scss'].sort()
+);
+
+const warning = JSON.parse(context.harmonySass.compileProject({
+  source: '@warn "check me"; .card { color: red; }'
+}));
+assert.equal(warning.ok, true);
+assert.equal(warning.warnings.length, 1);
+assert.match(warning.warnings[0].message, /check me/);
+
 const failure = JSON.parse(
   context.harmonySass.compile('.card { color: $missing; }')
 );
@@ -87,7 +172,9 @@ assert.equal(failure.ok, false);
 assert.equal(failure.error.line, 1);
 assert.equal(failure.error.column, 16);
 assert.match(failure.error.message, /Undefined variable/);
+assert.equal(failure.error.span.start.line, 1);
+assert.equal(failure.error.span.end.column, 24);
 
 console.log(
-  `Verified ${fixtures.length} compatibility fixtures against Dart Sass ${sassPackage.version}.`
+  `Verified ${fixtures.length} single-document fixtures and project workflow against Dart Sass ${sassPackage.version}.`
 );
