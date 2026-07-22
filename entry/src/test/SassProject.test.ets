@@ -122,6 +122,7 @@ export default function sassProjectTest() {
       expect(compilerFiles[2].path).assertEqual(
         'node_modules/theme/package.json'
       );
+      expect(compilerFiles[0].uri).assertEqual('file://src/_tokens.scss');
     });
 
     it('keeps a manually selected syntax in the project model', 0, (): void => {

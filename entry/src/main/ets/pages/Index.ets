@@ -282,6 +282,7 @@ struct Index {
       const request: SassCompileRequest = {
         source: this.source,
         entryPath: this.activePath,
+        entryUri: this.activeFile().uri,
         files: SassProject.compilerFiles(this.files, this.activePath),
         loadPaths: this.loadPaths(),
         nodePackageImporter: true,
@@ -293,8 +294,10 @@ struct Index {
         sourceMap: this.sourceMapEnabled,
         sourceMapIncludeSources: true,
         charset: true,
+        quiet: false,
         quietDeps: false,
         verbose: false,
+        errorCss: false,
         fatalDeprecations: [],
         futureDeprecations: [],
         silenceDeprecations: []
@@ -926,7 +929,9 @@ struct Index {
           css: compiled.results[index].css ?? '',
           sourceMap: compiled.results[index].sourceMap ?? '',
           cssFileName: SassProject.fileNameFromUri(uris[index * 2]),
-          sourceMapFileName: SassProject.fileNameFromUri(uris[index * 2 + 1])
+          sourceMapFileName: SassProject.fileNameFromUri(uris[index * 2 + 1]),
+          cssUri: uris[index * 2],
+          sourceMapUri: uris[index * 2 + 1]
         });
       }
       const finalized: SassExportFinalizeResponse =
@@ -987,7 +992,9 @@ struct Index {
           css: compiled.results[index].css ?? '',
           sourceMap: compiled.results[index].sourceMap ?? '',
           cssFileName,
-          sourceMapFileName
+          sourceMapFileName,
+          cssUri: '',
+          sourceMapUri: uris[index]
         });
       }
       const finalized: SassExportFinalizeResponse =
@@ -1022,8 +1029,11 @@ struct Index {
       sourceMap,
       sourceMapIncludeSources: true,
       charset: true,
+      quiet: false,
       quietDeps: false,
       verbose: false,
+      errorCss: true,
+      stopOnError: false,
       fatalDeprecations: [],
       futureDeprecations: [],
       silenceDeprecations: []
@@ -1038,6 +1048,8 @@ struct Index {
   ): Promise<SassExportFinalizeResponse> {
     const request: SassExportFinalizeRequest = {
       style: this.outputStyle,
+      sourceMapUrls: 'relative',
+      embedSourceMap: false,
       entries
     };
     const script: string =

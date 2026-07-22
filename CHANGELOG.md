@@ -2,6 +2,19 @@
 
 All notable changes to this project are documented here.
 
+## 0.8.0 - 2026-07-22
+
+- Preserved real HarmonyOS document URIs through entry compilation, relative
+  imports, package imports, loaded URLs, structured errors and Source Maps.
+- Added official `quiet` logger behavior and CLI-compatible Error CSS without
+  changing the existing two-pane UI.
+- Added official batch `stopOnError` behavior while retaining the existing
+  compile-all and export workflows.
+- Added relative and absolute Source Map source URL modes, embedded Source Map
+  data URIs and cross-directory `sourceMappingURL` generation.
+- Matched official Dart Sass CLI Error CSS and external/embedded Source Map
+  exports byte-for-byte in the runtime compatibility suite.
+
 ## 0.7.0 - 2026-07-22
 
 - Matched the official Dart Sass CLI file-export behavior when Source Maps are

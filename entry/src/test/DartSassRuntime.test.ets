@@ -17,10 +17,11 @@ export default function dartSassRuntimeTest() {
       );
       expect(script).assertEqual(
         'globalThis.harmonySass.compileProject({"source":".a::before { content: \\"` ${value} \\\\\\"\\"; }",' +
-        '"entryPath":"stdin.scss","files":[],"loadPaths":[],"nodePackageImporter":false,' +
+        '"entryPath":"stdin.scss","entryUri":"","files":[],"loadPaths":[],"nodePackageImporter":false,' +
         '"packageEntryPointDirectory":"","syntax":"scss","style":"expanded",' +
         '"alertAscii":false,"alertColor":false,' +
-        '"sourceMap":false,"sourceMapIncludeSources":true,"charset":true,"quietDeps":false,"verbose":false,' +
+        '"sourceMap":false,"sourceMapIncludeSources":true,"charset":true,"quiet":false,' +
+        '"quietDeps":false,"verbose":false,"errorCss":false,' +
         '"fatalDeprecations":[],"futureDeprecations":[],"silenceDeprecations":[]})'
       );
     });
@@ -29,7 +30,12 @@ export default function dartSassRuntimeTest() {
       const request: SassCompileRequest = {
         source: '@use "tokens";',
         entryPath: 'src/app.scss',
-        files: [{ path: 'src/_tokens.scss', contents: '$brand: blue;' }],
+        entryUri: 'file:///project/src/app.scss',
+        files: [{
+          path: 'src/_tokens.scss',
+          uri: 'file:///project/src/_tokens.scss',
+          contents: '$brand: blue;'
+        }],
         loadPaths: ['src'],
         nodePackageImporter: true,
         packageEntryPointDirectory: 'src',
@@ -40,8 +46,10 @@ export default function dartSassRuntimeTest() {
         sourceMap: true,
         sourceMapIncludeSources: true,
         charset: false,
+        quiet: false,
         quietDeps: true,
         verbose: false,
+        errorCss: true,
         fatalDeprecations: ['import'],
         futureDeprecations: [],
         silenceDeprecations: ['slash-div']
@@ -53,6 +61,8 @@ export default function dartSassRuntimeTest() {
       expect(script.includes('"fatalDeprecations":["import"]')).assertTrue();
       expect(script.includes('"nodePackageImporter":true')).assertTrue();
       expect(script.includes('"packageEntryPointDirectory":"src"')).assertTrue();
+      expect(script.includes('"entryUri":"file:///project/src/app.scss"')).assertTrue();
+      expect(script.includes('"errorCss":true')).assertTrue();
     });
 
     it('serializes and parses batch compilation', 0, (): void => {
@@ -71,8 +81,11 @@ export default function dartSassRuntimeTest() {
         sourceMap: false,
         sourceMapIncludeSources: true,
         charset: true,
+        quiet: false,
         quietDeps: false,
         verbose: false,
+        errorCss: true,
+        stopOnError: true,
         fatalDeprecations: [],
         futureDeprecations: [],
         silenceDeprecations: []
@@ -89,11 +102,15 @@ export default function dartSassRuntimeTest() {
     it('serializes and parses official file export finalization', 0, (): void => {
       const request: SassExportFinalizeRequest = {
         style: 'expanded',
+        sourceMapUrls: 'relative',
+        embedSourceMap: false,
         entries: [{
           css: '.a {\n  color: red;\n}',
           sourceMap: '{"version":3,"mappings":"AAAA"}',
           cssFileName: 'a b.css',
-          sourceMapFileName: 'a b.css.map'
+          sourceMapFileName: 'a b.css.map',
+          cssUri: 'file:///output/a%20b.css',
+          sourceMapUri: 'file:///output/a%20b.css.map'
         }]
       };
       const script: string =

@@ -35,6 +35,7 @@ export interface SassDebugMessage {
 
 export interface SassProjectFile {
   path: string;
+  uri?: string;
   contents: string;
   syntax?: string;
 }
@@ -42,6 +43,7 @@ export interface SassProjectFile {
 export interface SassCompileRequest {
   source: string;
   entryPath: string;
+  entryUri: string;
   files: SassProjectFile[];
   loadPaths: string[];
   nodePackageImporter: boolean;
@@ -53,8 +55,10 @@ export interface SassCompileRequest {
   sourceMap: boolean;
   sourceMapIncludeSources: boolean;
   charset: boolean;
+  quiet: boolean;
   quietDeps: boolean;
   verbose: boolean;
+  errorCss: boolean;
   fatalDeprecations: string[];
   futureDeprecations: string[];
   silenceDeprecations: string[];
@@ -64,6 +68,7 @@ export interface SassCompileResponse {
   ok: boolean;
   version: string;
   css?: string;
+  errorCss?: string;
   sourceMap?: string;
   loadedUrls?: string[];
   warnings?: SassWarning[];
@@ -83,8 +88,11 @@ export interface SassBatchCompileRequest {
   sourceMap: boolean;
   sourceMapIncludeSources: boolean;
   charset: boolean;
+  quiet: boolean;
   quietDeps: boolean;
   verbose: boolean;
+  errorCss: boolean;
+  stopOnError: boolean;
   fatalDeprecations: string[];
   futureDeprecations: string[];
   silenceDeprecations: string[];
@@ -105,10 +113,14 @@ export interface SassExportFinalizeEntry {
   sourceMap: string;
   cssFileName: string;
   sourceMapFileName: string;
+  cssUri: string;
+  sourceMapUri: string;
 }
 
 export interface SassExportFinalizeRequest {
   style: string;
+  sourceMapUrls: string;
+  embedSourceMap: boolean;
   entries: SassExportFinalizeEntry[];
 }
 
@@ -126,6 +138,7 @@ export class DartSassRuntime {
     const request: SassCompileRequest = {
       source,
       entryPath: 'stdin.scss',
+      entryUri: '',
       files: [],
       loadPaths: [],
       nodePackageImporter: false,
@@ -137,8 +150,10 @@ export class DartSassRuntime {
       sourceMap: false,
       sourceMapIncludeSources: true,
       charset: true,
+      quiet: false,
       quietDeps: false,
       verbose: false,
+      errorCss: false,
       fatalDeprecations: [],
       futureDeprecations: [],
       silenceDeprecations: []

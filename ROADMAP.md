@@ -1,6 +1,6 @@
 # Roadmap
 
-## Completed through 0.7.0
+## Completed through 0.8.0
 
 - Official Dart Sass runtime integration
 - Official Dart Sass `1.101.3` language behavior
@@ -11,11 +11,16 @@
 - Expanded and compressed output
 - Source Maps with official defaults, warnings, loaded URLs and full error
   spans
+- Real HarmonyOS document URIs in entry/import diagnostics, loaded URLs and
+  Source Maps
 - Official CLI-compatible paired CSS/Source Map file export, including the
   Source Map `file` field, `sourceMappingURL`, output-style whitespace and URI
   encoding
+- Relative and absolute Source Map URLs, embedded Source Maps and
+  cross-directory CSS-to-map links
 - Deprecation controls by ID or compiler version, deprecation IDs, warning and
   error Sass stacks, official `quietDeps` behavior and `@debug` messages
+- Official `quiet`, Error CSS and batch `stopOnError` behavior
 - Multiple-entry batch compilation
 - HarmonyOS PC open, save, export, copy and keyboard workflows
 - Save-all for modified project files

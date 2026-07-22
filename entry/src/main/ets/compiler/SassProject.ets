@@ -203,6 +203,7 @@ export class SassProject {
       }
       compilerFiles.push({
         path: file.path,
+        uri: file.uri,
         contents: file.contents,
         syntax: file.syntax
       });

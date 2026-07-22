@@ -10,6 +10,17 @@ function text(value) {
   return value === undefined || value === null ? '' : String(value);
 }
 
+function absoluteUrl(value) {
+  const source = text(value);
+  if (!source) return null;
+  try {
+    const url = new URL(source);
+    return url.protocol ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 function stringList(value) {
   if (!Array.isArray(value)) return [];
   return value
@@ -89,6 +100,53 @@ function virtualUrl(path) {
 
 function pathFromVirtualUrl(url) {
   return normalizePath(url.pathname);
+}
+
+function projectPathFromUrl(files, value) {
+  const url = value instanceof URL ? value : absoluteUrl(value);
+  if (!url) return null;
+  if (url.protocol === VIRTUAL_SCHEME) return pathFromVirtualUrl(url);
+
+  const target = url.toString();
+  for (const [path, file] of files) {
+    const fileUrl = absoluteUrl(file && file.uri);
+    if (fileUrl && fileUrl.toString() === target) return path;
+  }
+  return null;
+}
+
+function projectPathForImportUrl(files, value) {
+  const exact = projectPathFromUrl(files, value);
+  if (exact) return exact;
+
+  const target = value instanceof URL ? value : absoluteUrl(value);
+  if (!target) return null;
+  let bestPath = null;
+  let bestPrefixLength = -1;
+  for (const [path, file] of files) {
+    const fileUrl = absoluteUrl(file && file.uri);
+    if (!fileUrl ||
+      fileUrl.protocol !== target.protocol ||
+      fileUrl.host !== target.host) {
+      continue;
+    }
+    const directoryUrl = new URL('.', fileUrl);
+    if (!target.pathname.startsWith(directoryUrl.pathname) ||
+      directoryUrl.pathname.length <= bestPrefixLength) {
+      continue;
+    }
+    bestPath = joinPath(
+      dirname(path),
+      decode(target.pathname.slice(directoryUrl.pathname.length))
+    );
+    bestPrefixLength = directoryUrl.pathname.length;
+  }
+  return bestPath;
+}
+
+function projectUrl(files, path) {
+  const normalized = normalizePath(path);
+  return sourceMapUrlForFile(files.get(normalized), virtualUrl(normalized));
 }
 
 function matchingPaths(files, stem, extensions, importOnly) {
@@ -176,6 +234,7 @@ function normalizeRequest(value) {
   return {
     source: text(request.source),
     entryPath,
+    entryUri: text(request.entryUri),
     files: Array.isArray(request.files) ? request.files : [],
     loadPaths: Array.isArray(request.loadPaths) ? request.loadPaths : [],
     nodePackageImporter: request.nodePackageImporter === true,
@@ -189,8 +248,10 @@ function normalizeRequest(value) {
     sourceMap: request.sourceMap === true,
     sourceMapIncludeSources: request.sourceMapIncludeSources === true,
     charset: request.charset !== false,
+    quiet: request.quiet === true,
     quietDeps: request.quietDeps === true,
     verbose: request.verbose === true,
+    errorCss: request.errorCss === true,
     fatalDeprecations: fatalDeprecationList(request.fatalDeprecations),
     futureDeprecations: stringList(request.futureDeprecations),
     silenceDeprecations: stringList(request.silenceDeprecations)
@@ -205,12 +266,14 @@ function createProject(request) {
     if (!path) continue;
     files.set(path, {
       contents: text(candidate.contents),
-      syntax: syntaxForPath(path, candidate.syntax)
+      syntax: syntaxForPath(path, candidate.syntax),
+      uri: text(candidate.uri)
     });
   }
   files.set(request.entryPath, {
     contents: request.source,
-    syntax: request.syntax
+    syntax: request.syntax,
+    uri: request.entryUri
   });
   return files;
 }
@@ -512,11 +575,16 @@ function createNodePackageImporter(files, entryPointDirectory) {
         if (url.startsWith(VIRTUAL_SCHEME)) {
           requestedPath = pathFromVirtualUrl(new URL(url));
         } else if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
-          return null;
-        } else if (context.containingUrl &&
-          context.containingUrl.protocol === VIRTUAL_SCHEME) {
+          requestedPath = projectPathForImportUrl(files, url) || '';
+          if (!requestedPath) return null;
+        } else if (context.containingUrl) {
+          const containingPath = projectPathFromUrl(
+            files,
+            context.containingUrl
+          );
+          if (!containingPath) return null;
           requestedPath = joinPath(
-            dirname(pathFromVirtualUrl(context.containingUrl)),
+            dirname(containingPath),
             url
           );
         } else {
@@ -527,7 +595,7 @@ function createNodePackageImporter(files, entryPointDirectory) {
           requestedPath,
           context.fromImport
         );
-        return resolved ? virtualUrl(resolved) : null;
+        return resolved ? projectUrl(files, resolved) : null;
       }
 
       const parsed = new URL(url);
@@ -554,9 +622,11 @@ function createNodePackageImporter(files, entryPointDirectory) {
         return null;
       }
 
-      const baseDirectory = context.containingUrl &&
-        context.containingUrl.protocol === VIRTUAL_SCHEME
-        ? dirname(pathFromVirtualUrl(context.containingUrl))
+      const containingPath = context.containingUrl
+        ? projectPathFromUrl(files, context.containingUrl)
+        : null;
+      const baseDirectory = containingPath
+        ? dirname(containingPath)
         : entryPointDirectory;
       const packageRoot = resolvePackageRoot(
         files,
@@ -602,7 +672,10 @@ function createNodePackageImporter(files, entryPointDirectory) {
             `to '${exported}', which is not a '.scss', '.sass', or '.css' file.`
           );
         }
-        return virtualUrl(importOnlyPath(files, exported, fromImport));
+        return projectUrl(
+          files,
+          importOnlyPath(files, exported, fromImport)
+        );
       }
 
       const resolved = subpath === null
@@ -612,18 +685,18 @@ function createNodePackageImporter(files, entryPointDirectory) {
           joinPath(packageRoot, subpath),
           fromImport
         );
-      return resolved ? virtualUrl(resolved) : null;
+      return resolved ? projectUrl(files, resolved) : null;
     },
 
     load(canonicalUrl) {
-      if (canonicalUrl.protocol !== VIRTUAL_SCHEME) return null;
-      const path = pathFromVirtualUrl(canonicalUrl);
+      const path = projectPathFromUrl(files, canonicalUrl);
+      if (!path) return null;
       const file = files.get(path);
       if (!file || !STYLESHEET_EXTENSIONS.has(extension(path))) return null;
       return {
         contents: file.contents,
         syntax: syntaxForPath(path, file.syntax),
-        sourceMapUrl: canonicalUrl
+        sourceMapUrl: projectUrl(files, path)
       };
     }
   };
@@ -637,17 +710,20 @@ function createImporter(files, rootsForUrl) {
       const roots = [];
       if (url.startsWith(VIRTUAL_SCHEME)) {
         const path = pathFromVirtualUrl(new URL(url));
-        if (files.has(path)) return virtualUrl(path);
+        if (files.has(path)) return projectUrl(files, path);
         roots.push(path);
       } else if (/^[a-z][a-z0-9+.-]*:/i.test(url)) {
-        return null;
-      } else if (
-        context.containingUrl &&
-        context.containingUrl.protocol === VIRTUAL_SCHEME
-      ) {
-        roots.push(
-          joinPath(dirname(pathFromVirtualUrl(context.containingUrl)), url)
+        const path = projectPathForImportUrl(files, url);
+        if (!path) return null;
+        if (files.has(path)) return projectUrl(files, path);
+        roots.push(path);
+      } else if (context.containingUrl) {
+        const containingPath = projectPathFromUrl(
+          files,
+          context.containingUrl
         );
+        if (!containingPath) return null;
+        roots.push(joinPath(dirname(containingPath), url));
       } else {
         roots.push(normalizePath(url));
       }
@@ -655,20 +731,20 @@ function createImporter(files, rootsForUrl) {
 
       for (const root of roots) {
         const resolved = resolveCandidate(files, root, context.fromImport);
-        if (resolved) return virtualUrl(resolved);
+        if (resolved) return projectUrl(files, resolved);
       }
       return null;
     },
 
     load(canonicalUrl) {
-      if (canonicalUrl.protocol !== VIRTUAL_SCHEME) return null;
-      const path = pathFromVirtualUrl(canonicalUrl);
+      const path = projectPathFromUrl(files, canonicalUrl);
+      if (!path) return null;
       const file = files.get(path);
       if (!file) return null;
       return {
         contents: file.contents,
         syntax: file.syntax,
-        sourceMapUrl: canonicalUrl
+        sourceMapUrl: projectUrl(files, path)
       };
     }
   };
@@ -686,11 +762,11 @@ function createLoadPathImporter(files, loadPaths) {
   );
 }
 
-function compileProjectResult(value) {
-  const request = normalizeRequest(value);
-  const files = createProject(request);
-  const warnings = [];
-  const debugMessages = [];
+function sourceMapUrlForFile(file, fallbackUrl) {
+  return absoluteUrl(file && file.uri) || fallbackUrl;
+}
+
+function createCompileOptions(request, files, logger, overrides = {}) {
   const importer = createRelativeImporter(files);
   const importers = [];
   if (request.nodePackageImporter) {
@@ -701,25 +777,105 @@ function compileProjectResult(value) {
   if (request.loadPaths.length > 0) {
     importers.push(createLoadPathImporter(files, request.loadPaths));
   }
+  return {
+    url: projectUrl(files, request.entryPath),
+    syntax: request.syntax,
+    style: request.style,
+    alertAscii: overrides.alertAscii ?? request.alertAscii,
+    alertColor: overrides.alertColor ?? request.alertColor,
+    sourceMap: request.sourceMap,
+    sourceMapIncludeSources: request.sourceMapIncludeSources,
+    charset: request.charset,
+    quietDeps: request.quietDeps,
+    verbose: request.verbose,
+    fatalDeprecations: request.fatalDeprecations,
+    futureDeprecations: request.futureDeprecations,
+    silenceDeprecations: request.silenceDeprecations,
+    importer,
+    importers,
+    logger
+  };
+}
 
+function compileForFormattedError(request, files, alertAscii) {
   try {
-    const result = sass.compileString(request.source, {
-      url: virtualUrl(request.entryPath),
-      syntax: request.syntax,
-      style: request.style,
-      alertAscii: request.alertAscii,
-      alertColor: request.alertColor,
-      sourceMap: request.sourceMap,
-      sourceMapIncludeSources: request.sourceMapIncludeSources,
-      charset: request.charset,
-      quietDeps: request.quietDeps,
-      verbose: request.verbose,
-      fatalDeprecations: request.fatalDeprecations,
-      futureDeprecations: request.futureDeprecations,
-      silenceDeprecations: request.silenceDeprecations,
-      importer,
-      importers,
-      logger: {
+    sass.compileString(
+      request.source,
+      createCompileOptions(request, files, sass.Logger.silent, {
+        alertAscii,
+        alertColor: false
+      })
+    );
+  } catch (error) {
+    return text(error && (error.message || error));
+  }
+  return '';
+}
+
+function withErrorPrefix(message) {
+  const value = text(message);
+  return value.startsWith('Error: ') ? value : `Error: ${value}`;
+}
+
+function escapeNonAscii(value) {
+  let result = '';
+  for (const character of value) {
+    const codePoint = character.codePointAt(0);
+    result += codePoint > 0x7f
+      ? `\\${codePoint.toString(16)} `
+      : character;
+  }
+  return result;
+}
+
+function errorCssDisplayUrls(value, files) {
+  let result = text(value);
+  for (const file of files.values()) {
+    const url = absoluteUrl(file && file.uri);
+    if (!url || url.protocol !== 'file:') continue;
+    const displayPath = `${url.host ? `//${url.host}` : ''}${decode(url.pathname)}`;
+    result = result.replaceAll(url.toString(), displayPath);
+  }
+  return result;
+}
+
+function errorCssFor(request, files, fallbackError) {
+  const formatted = errorCssDisplayUrls(
+    compileForFormattedError(request, files, false) ||
+      text(fallbackError && (fallbackError.message || fallbackError)),
+    files
+  );
+  const asciiFormatted = errorCssDisplayUrls(
+    compileForFormattedError(request, files, true) || formatted,
+    files
+  );
+  const commentMessage = withErrorPrefix(asciiFormatted)
+    .replaceAll('*/', '*∕')
+    .replaceAll('\r\n', '\n');
+  const stringMessage = escapeNonAscii(
+    new sass.SassString(withErrorPrefix(formatted)).toString()
+  );
+  return `/* ${commentMessage.split('\n').join('\n * ')} */\n\n` +
+    'body::before {\n' +
+    '  font-family: "Source Code Pro", "SF Mono", Monaco, Inconsolata, "Fira Mono",\n' +
+    '      "Droid Sans Mono", monospace, monospace;\n' +
+    '  white-space: pre;\n' +
+    '  display: block;\n' +
+    '  padding: 1em;\n' +
+    '  margin-bottom: 1em;\n' +
+    '  border-bottom: 2px solid black;\n' +
+    `  content: ${stringMessage};\n` +
+    '}\n';
+}
+
+function compileProjectResult(value) {
+  const request = normalizeRequest(value);
+  const files = createProject(request);
+  const warnings = [];
+  const debugMessages = [];
+  const logger = request.quiet
+    ? sass.Logger.silent
+    : {
         warn(message, options) {
           warnings.push({
             message: text(message),
@@ -737,8 +893,13 @@ function compileProjectResult(value) {
             span: serializeSpan(options.span)
           });
         }
-      }
-    });
+      };
+
+  try {
+    const result = sass.compileString(
+      request.source,
+      createCompileOptions(request, files, logger)
+    );
 
     return {
       ok: true,
@@ -751,6 +912,9 @@ function compileProjectResult(value) {
     };
   } catch (error) {
     const response = serializeError(error);
+    if (request.errorCss) {
+      response.errorCss = errorCssFor(request, files, error);
+    }
     response.warnings = warnings;
     response.debugMessages = debugMessages;
     return response;
@@ -773,6 +937,7 @@ function compileBatch(value) {
   }
 
   const results = [];
+  const stopOnError = request.stopOnError === true;
   for (const requestedPath of stringList(request.entryPaths)) {
     const entryPath = normalizePath(requestedPath);
     const entry = projectFiles.get(entryPath);
@@ -790,6 +955,7 @@ function compileBatch(value) {
           column: 0
         }
       });
+      if (stopOnError) break;
       continue;
     }
 
@@ -799,10 +965,12 @@ function compileBatch(value) {
         ...request,
         source: entry.contents,
         entryPath,
+        entryUri: text(entry.uri),
         syntax: syntaxForPath(entryPath, entry.syntax),
         files
       })
     });
+    if (stopOnError && results[results.length - 1].ok === false) break;
   }
 
   return JSON.stringify({
@@ -816,23 +984,99 @@ function encodedFileName(value) {
   return encodeURIComponent(basename(text(value)));
 }
 
+function relativeFileUrl(target, baseFile) {
+  if (!target || !baseFile ||
+    target.protocol !== 'file:' ||
+    baseFile.protocol !== 'file:' ||
+    target.host !== baseFile.host) {
+    return null;
+  }
+  const targetParts = target.pathname.split('/').filter(Boolean);
+  const baseParts = baseFile.pathname.split('/').filter(Boolean);
+  baseParts.pop();
+  let common = 0;
+  while (common < targetParts.length &&
+    common < baseParts.length &&
+    targetParts[common] === baseParts[common]) {
+    common++;
+  }
+  const relative = [
+    ...baseParts.slice(common).map(() => '..'),
+    ...targetParts.slice(common)
+  ].join('/');
+  return relative || basename(target.pathname);
+}
+
+function sourceMapSourceUrl(source, baseUri, mode) {
+  const sourceUrl = absoluteUrl(source);
+  if (!sourceUrl || sourceUrl.protocol !== 'file:') return text(source);
+  if (mode !== 'relative') return sourceUrl.toString();
+  const baseUrl = absoluteUrl(baseUri);
+  return relativeFileUrl(sourceUrl, baseUrl) || sourceUrl.toString();
+}
+
+function sourceMappingUrl(candidate) {
+  const cssUrl = absoluteUrl(candidate.cssUri);
+  const mapUrl = absoluteUrl(candidate.sourceMapUri);
+  const relative = relativeFileUrl(mapUrl, cssUrl);
+  return relative ||
+    (mapUrl ? mapUrl.toString() : encodedFileName(candidate.sourceMapFileName));
+}
+
+function encodeDataUriPayload(value) {
+  return encodeURI(value)
+    .replaceAll('#', '%23');
+}
+
+function sourceMapWithFile(sourceMap, cssFileName) {
+  const result = {};
+  let inserted = false;
+  for (const [key, value] of Object.entries(sourceMap)) {
+    if (key === 'file') continue;
+    if (key === 'sourcesContent' && !inserted) {
+      result.file = cssFileName;
+      inserted = true;
+    }
+    result[key] = value;
+  }
+  if (!inserted) result.file = cssFileName;
+  return result;
+}
+
 function finalizeExports(value) {
   const request = value && typeof value === 'object' ? value : {};
   const style = SUPPORTED_STYLES.has(request.style)
     ? request.style
     : 'expanded';
+  const sourceMapUrls = request.sourceMapUrls === 'absolute'
+    ? 'absolute'
+    : 'relative';
+  const embedSourceMap = request.embedSourceMap === true;
   const entries = Array.isArray(request.entries) ? request.entries : [];
   const results = entries.map(entry => {
     const candidate = entry && typeof entry === 'object' ? entry : {};
-    const sourceMap = JSON.parse(text(candidate.sourceMap));
+    const parsedSourceMap = JSON.parse(text(candidate.sourceMap));
     const cssFileName = encodedFileName(candidate.cssFileName);
-    const sourceMapFileName = encodedFileName(candidate.sourceMapFileName);
-    sourceMap.file = cssFileName;
+    const sourceMap = sourceMapWithFile(parsedSourceMap, cssFileName);
+    const sourceBaseUri = embedSourceMap
+      ? candidate.cssUri
+      : candidate.sourceMapUri || candidate.cssUri;
+    if (Array.isArray(sourceMap.sources)) {
+      sourceMap.sources = sourceMap.sources.map(source =>
+        sourceMapSourceUrl(source, sourceBaseUri, sourceMapUrls)
+      );
+    }
+    const sourceMapText = JSON.stringify(sourceMap);
+    const mapUrl = embedSourceMap
+      ? 'data:application/json;charset=utf-8,' +
+        encodeDataUriPayload(sourceMapText)
+      : sourceMappingUrl(candidate);
+    const escapedUrl = mapUrl.replaceAll('*/', '%2A/');
     const separator = style === 'compressed' ? '' : '\n\n';
     return {
       css: `${text(candidate.css)}${separator}` +
-        `/*# sourceMappingURL=${sourceMapFileName} */\n`,
-      sourceMap: JSON.stringify(sourceMap)
+        `/*# sourceMappingURL=${escapedUrl} */\n`,
+      sourceMap: embedSourceMap ? '' : sourceMapText
     };
   });
   return JSON.stringify({ results });

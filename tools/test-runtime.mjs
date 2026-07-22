@@ -80,6 +80,110 @@ async function officialCliExport(source, outputFileName, style) {
   }
 }
 
+async function compareCliExport(source, options) {
+  const root = await mkdtemp(resolve(tmpdir(), 'harmony-sass-cli-options-'));
+  const entryPath = options.entryPath || 'src/app.scss';
+  const outputPath = options.outputPath || 'dist/app.css';
+  const sourcePath = resolve(root, entryPath);
+  const cssPath = resolve(root, outputPath);
+  const sourceMapPath = `${cssPath}.map`;
+  const files = options.files || [];
+  try {
+    await mkdir(dirname(sourcePath), { recursive: true });
+    await mkdir(dirname(cssPath), { recursive: true });
+    await writeFile(sourcePath, source);
+    for (const file of files) {
+      const filePath = resolve(root, file.path);
+      await mkdir(dirname(filePath), { recursive: true });
+      await writeFile(filePath, file.contents);
+    }
+
+    const args = [
+      sassCli,
+      '--embed-sources',
+      `--style=${options.style || 'expanded'}`,
+      `--source-map-urls=${options.sourceMapUrls || 'relative'}`
+    ];
+    if (options.embedSourceMap === true) args.push('--embed-source-map');
+    args.push(sourcePath, cssPath);
+    await execFileAsync(process.execPath, args);
+
+    const compiled = JSON.parse(context.harmonySass.compileProject({
+      source,
+      entryPath,
+      entryUri: pathToFileURL(sourcePath).toString(),
+      files: files.map(file => ({
+        ...file,
+        uri: pathToFileURL(resolve(root, file.path)).toString()
+      })),
+      style: options.style || 'expanded',
+      sourceMap: true,
+      sourceMapIncludeSources: true
+    }));
+    assert.equal(compiled.ok, true, 'URI-backed export fixture should compile');
+
+    const finalized = JSON.parse(context.harmonySass.finalizeExports({
+      style: options.style || 'expanded',
+      sourceMapUrls: options.sourceMapUrls || 'relative',
+      embedSourceMap: options.embedSourceMap === true,
+      entries: [{
+        css: compiled.css,
+        sourceMap: compiled.sourceMap,
+        cssFileName: cssPath.slice(cssPath.lastIndexOf('/') + 1),
+        sourceMapFileName: sourceMapPath.slice(
+          sourceMapPath.lastIndexOf('/') + 1
+        ),
+        cssUri: pathToFileURL(cssPath).toString(),
+        sourceMapUri: pathToFileURL(sourceMapPath).toString()
+      }]
+    })).results[0];
+
+    return {
+      actual: finalized,
+      expectedCss: await readFile(cssPath, 'utf8'),
+      expectedSourceMap: options.embedSourceMap === true
+        ? ''
+        : await readFile(sourceMapPath, 'utf8')
+    };
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+async function compareCliErrorCss(source) {
+  const root = await mkdtemp(resolve(tmpdir(), 'harmony-sass-error-css-'));
+  const sourcePath = resolve(root, 'src/app.scss');
+  const cssPath = resolve(root, 'dist/app.css');
+  try {
+    await mkdir(dirname(sourcePath), { recursive: true });
+    await mkdir(dirname(cssPath), { recursive: true });
+    await writeFile(sourcePath, source);
+    try {
+      await execFileAsync(process.execPath, [
+        sassCli,
+        '--error-css',
+        sourcePath,
+        cssPath
+      ]);
+    } catch {
+      // The official CLI exits with an error after writing Error CSS.
+    }
+    const actual = JSON.parse(context.harmonySass.compileProject({
+      source,
+      entryPath: 'src/app.scss',
+      entryUri: pathToFileURL(sourcePath).toString(),
+      errorCss: true
+    }));
+    assert.equal(actual.ok, false, 'Error CSS fixture should fail compilation');
+    return {
+      actual: actual.errorCss,
+      expected: await readFile(cssPath, 'utf8')
+    };
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
 async function officialProjectWarnings(source, files, options = {}) {
   const root = await mkdtemp(resolve(tmpdir(), 'harmony-sass-reference-'));
   const entryPath = options.entryPath || 'app.scss';
@@ -301,6 +405,45 @@ assert.ok(
   'sourceMapIncludeSources should embed project sources when enabled'
 );
 
+const entryUri = 'file:///documents/project/src/app.scss';
+const tokensUri = 'file:///documents/project/src/_tokens.scss';
+const uriBackedProject = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "tokens"; .app { color: tokens.$brand; }',
+  entryPath: 'src/app.scss',
+  entryUri,
+  sourceMap: true,
+  sourceMapIncludeSources: true,
+  files: [{
+    path: 'src/_tokens.scss',
+    uri: tokensUri,
+    contents: '$brand: blue; .tokens { color: $brand; }'
+  }]
+}));
+assert.equal(uriBackedProject.ok, true, 'real project URIs should compile');
+assert.deepEqual(uriBackedProject.loadedUrls, [entryUri, tokensUri]);
+assert.deepEqual(
+  JSON.parse(uriBackedProject.sourceMap).sources,
+  [tokensUri, entryUri],
+  'Source Maps should retain real entry and imported-file URIs'
+);
+
+const uriBackedError = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "broken";',
+  entryPath: 'src/app.scss',
+  entryUri,
+  files: [{
+    path: 'src/_broken.scss',
+    uri: 'file:///documents/project/src/_broken.scss',
+    contents: '.broken { color: $missing; }'
+  }]
+}));
+assert.equal(uriBackedError.ok, false);
+assert.equal(
+  uriBackedError.error.span.url,
+  'file:///documents/project/src/_broken.scss',
+  'dependency errors should point to the real project document'
+);
+
 const defaultSourceMap = JSON.parse(context.harmonySass.compileProject({
   source: '.card { color: red; }',
   sourceMap: true
@@ -458,6 +601,74 @@ for (const fixture of [
   assert.deepEqual(actualMap.sourcesContent, expected.sourceMap.sourcesContent);
 }
 
+for (const fixture of [
+  {
+    name: 'relative external Source Map',
+    sourceMapUrls: 'relative',
+    embedSourceMap: false
+  },
+  {
+    name: 'absolute external Source Map',
+    sourceMapUrls: 'absolute',
+    embedSourceMap: false
+  },
+  {
+    name: 'embedded Source Map',
+    sourceMapUrls: 'relative',
+    embedSourceMap: true
+  }
+]) {
+  const compared = await compareCliExport(
+    '@use "tokens"; .app { color: tokens.$brand; }',
+    {
+      sourceMapUrls: fixture.sourceMapUrls,
+      embedSourceMap: fixture.embedSourceMap,
+      files: [{
+        path: 'src/_tokens.scss',
+        contents: '$brand: #123456; .tokens { color: $brand; }'
+      }]
+    }
+  );
+  assert.equal(
+    compared.actual.css,
+    compared.expectedCss,
+    `${fixture.name} CSS should match the official CLI byte-for-byte`
+  );
+  assert.equal(
+    compared.actual.sourceMap,
+    compared.expectedSourceMap,
+    `${fixture.name} map should match the official CLI byte-for-byte`
+  );
+}
+
+const crossDirectoryMap = JSON.parse(context.harmonySass.finalizeExports({
+  style: 'expanded',
+  sourceMapUrls: 'relative',
+  embedSourceMap: false,
+  entries: [{
+    css: '.app {\n  color: red;\n}',
+    sourceMap: JSON.stringify({
+      version: 3,
+      sourceRoot: '',
+      sources: ['file:///project/src/app.scss'],
+      names: [],
+      mappings: 'AAAA'
+    }),
+    cssFileName: 'app.css',
+    sourceMapFileName: 'app.css.map',
+    cssUri: 'file:///project/dist/css/app.css',
+    sourceMapUri: 'file:///project/maps/app.css.map'
+  }]
+})).results[0];
+assert.match(
+  crossDirectoryMap.css,
+  /sourceMappingURL=\.\.\/\.\.\/maps\/app\.css\.map/
+);
+assert.deepEqual(
+  JSON.parse(crossDirectoryMap.sourceMap).sources,
+  ['../src/app.scss']
+);
+
 const explicitExtensionProject = JSON.parse(context.harmonySass.compileProject({
   source: '@use "theme.scss";',
   entryPath: 'app.scss',
@@ -483,6 +694,14 @@ const debug = JSON.parse(context.harmonySass.compileProject({
 assert.equal(debug.ok, true);
 assert.equal(debug.debugMessages.length, 1);
 assert.match(debug.debugMessages[0].message, /42/);
+
+const quiet = JSON.parse(context.harmonySass.compileProject({
+  source: '@warn "hidden"; @debug "hidden"; .card { color: red; }',
+  quiet: true
+}));
+assert.equal(quiet.ok, true);
+assert.deepEqual(quiet.warnings, []);
+assert.deepEqual(quiet.debugMessages, []);
 
 const silencedDeprecation = JSON.parse(context.harmonySass.compileProject({
   source: '@import "legacy";',
@@ -861,6 +1080,37 @@ for (const fixture of packageFixtures) {
   );
 }
 
+const uriPackage = JSON.parse(context.harmonySass.compileProject({
+  source: '@use "pkg:theme"; .app { color: theme.$brand; }',
+  entryPath: 'src/app.scss',
+  entryUri: 'file:///documents/project/src/app.scss',
+  nodePackageImporter: true,
+  sourceMap: true,
+  files: [
+    {
+      path: 'node_modules/theme/package.json',
+      uri: 'file:///documents/project/node_modules/theme/package.json',
+      contents: JSON.stringify({ sass: 'index.scss' })
+    },
+    {
+      path: 'node_modules/theme/index.scss',
+      uri: 'file:///documents/project/node_modules/theme/index.scss',
+      contents: '@use "tokens"; $brand: tokens.$brand;'
+    },
+    {
+      path: 'node_modules/theme/_tokens.scss',
+      uri: 'file:///documents/project/node_modules/theme/_tokens.scss',
+      contents: '$brand: #123456;'
+    }
+  ]
+}));
+assert.equal(uriPackage.ok, true, 'URI-backed pkg: imports should compile');
+assert.deepEqual(uriPackage.loadedUrls, [
+  'file:///documents/project/src/app.scss',
+  'file:///documents/project/node_modules/theme/index.scss',
+  'file:///documents/project/node_modules/theme/_tokens.scss'
+]);
+
 const importOnlyPackageFiles = [
   {
     path: 'node_modules/legacy/package.json',
@@ -1083,23 +1333,60 @@ const batch = JSON.parse(context.harmonySass.compileBatch({
   files: [
     {
       path: 'src/app.scss',
+      uri: 'file:///documents/project/src/app.scss',
       contents: '@use "tokens"; .app { color: tokens.$brand; }'
     },
     {
       path: 'src/admin.scss',
+      uri: 'file:///documents/project/src/admin.scss',
       contents: '@use "tokens"; .admin { border-color: tokens.$brand; }'
     },
-    { path: 'src/_tokens.scss', contents: '$brand: #0a7bff;' }
+    {
+      path: 'src/_tokens.scss',
+      uri: 'file:///documents/project/src/_tokens.scss',
+      contents: '$brand: #0a7bff;'
+    }
   ]
 }));
 assert.equal(batch.ok, false);
 assert.equal(batch.results.length, 3);
 assert.equal(batch.results[0].ok, true);
 assert.match(batch.results[0].css, /\.app/);
+assert.equal(
+  batch.results[0].loadedUrls[0],
+  'file:///documents/project/src/app.scss'
+);
 assert.equal(batch.results[1].ok, true);
 assert.match(batch.results[1].css, /\.admin/);
 assert.equal(batch.results[2].ok, false);
 assert.match(batch.results[2].error.message, /was not found/);
+
+const stoppedBatch = JSON.parse(context.harmonySass.compileBatch({
+  entryPaths: ['src/broken.scss', 'src/app.scss'],
+  stopOnError: true,
+  errorCss: true,
+  files: [
+    {
+      path: 'src/broken.scss',
+      contents: '.broken { color: $missing; }'
+    },
+    {
+      path: 'src/app.scss',
+      contents: '.app { color: blue; }'
+    }
+  ]
+}));
+assert.equal(stoppedBatch.ok, false);
+assert.equal(stoppedBatch.results.length, 1);
+assert.equal(stoppedBatch.results[0].ok, false);
+assert.ok(stoppedBatch.results[0].errorCss.length > 0);
+
+const errorCss = await compareCliErrorCss('@error "坏*/";');
+assert.equal(
+  errorCss.actual,
+  errorCss.expected,
+  'Error CSS should match the official CLI byte-for-byte'
+);
 
 const failure = JSON.parse(
   context.harmonySass.compile('.card { color: $missing; }')

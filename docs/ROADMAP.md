@@ -10,6 +10,8 @@
 - [x] Expanded and compressed CSS
 - [x] Source Maps with official API defaults and optional embedded sources
 - [x] Official CLI-compatible paired CSS and Source Map file export
+- [x] Relative/absolute Source Map source URLs and embedded Source Map data URIs
+- [x] Real HarmonyOS document URIs in loaded URLs, diagnostics and Source Maps
 - [x] Virtual multi-file projects and load paths
 - [x] Relative `@use`, `@forward` and legacy `@import`
 - [x] Partials, directory indexes, import-only files and ambiguity errors
@@ -22,6 +24,7 @@
 - [x] Virtual-project `NodePackageImporter`, `pkg:` URLs, nearest
       `node_modules`, package exports and nested package dependencies
 - [x] Multiple-entry batch CSS and Source Map export
+- [x] Official `quiet`, Error CSS and batch `stopOnError` behavior
 - [x] Open, save, save-as, save-all, copy and keyboard workflows
 - [x] URI-safe document-provider file names containing encoded `#` or `?`
 - [x] Automatic compilation and authorized external-file reload

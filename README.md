@@ -29,6 +29,9 @@ than a rewritten or reduced compiler.
 - Official Source Map option defaults for direct runtime API callers
 - Official CLI-compatible CSS/Source Map file association, target file names,
   URI encoding and expanded/compressed export formatting
+- Relative and absolute Source Map source URLs, embedded Source Map data URIs
+  and cross-directory CSS-to-map links
+- Real HarmonyOS document URIs in loaded URLs, errors and Source Maps
 - Source file open, save and save-as
 - CSS copy and export, paired CSS/Source Map export, plus standalone Source Map
   export
@@ -38,6 +41,7 @@ than a rewritten or reduced compiler.
 - Save-all behavior for modified files in a loaded project
 - Structured errors, warnings, deprecation IDs, warning and error Sass stacks,
   and `@debug` messages
+- Official quiet logging, Error CSS and batch stop-on-error behavior
 - Fatal deprecations selected by either deprecation ID or Dart Sass version
 - Official `quietDeps` classification for relative files, virtual load paths
   and package dependencies
@@ -126,7 +130,9 @@ Source Maps, loaded URLs, batch entries, debug messages, deprecation controls,
 fatal deprecation versions, dependency warning classification, warnings and
 structured errors. File-export fixtures compare complete expanded and
 compressed CSS output, Source Map target names and URI-encoded output names
-with the official CLI. Importer fixtures also compare file-versus-index
+with the official CLI. They also compare Error CSS, relative and absolute
+Source Map URLs, and embedded Source Map data URIs byte-for-byte. Importer
+fixtures also compare file-versus-index
 precedence, Sass-versus-CSS precedence, explicit extensions, ambiguity
 handling, package exports, package conditions, nested dependencies and package
 error boundaries with the pinned official package.
