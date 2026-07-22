@@ -10,7 +10,8 @@
       with a compatible synchronous runtime bridge
 - [x] Explicit release of abandoned asynchronous bridge jobs on timeout and
       page exit
-- [x] Official `sass.info` validation and complete deprecation metadata bridge
+- [x] Official `sass.info`, structured compiler-version metadata and complete
+      nullable deprecation release metadata bridge
 - [x] SCSS, indented Sass and CSS input
 - [x] Complete Sass language semantics supplied by Dart Sass
 - [x] Built-in `sass:*` modules and Sass-authored `@function`
@@ -30,10 +31,12 @@
       stack traces and `@debug`
 - [x] Fatal deprecations by ID or Dart Sass version
 - [x] Sync/async parity checks for charset output, ASCII/color diagnostics,
-      verbose warnings and deprecation option validation
+      verbose warnings, strict syntax/style errors and unmodified deprecation
+      option validation
 - [x] Official `quietDeps` behavior for relative and load-path stylesheets
 - [x] Virtual-project `NodePackageImporter`, `pkg:` URLs, nearest
-      `node_modules`, package exports and nested package dependencies
+      `node_modules`, package export conditions, array fallbacks, wildcard
+      precedence and nested package dependencies
 - [x] Multiple-entry batch CSS and Source Map export
 - [x] Official `quiet`, Error CSS and batch `stopOnError` behavior
 - [x] Open, save, save-as, save-all, copy and keyboard workflows

@@ -1,6 +1,6 @@
 # Roadmap
 
-## Completed through 0.13.0
+## Completed through 0.14.0
 
 - Official Dart Sass runtime integration
 - Official Dart Sass `1.101.3` language behavior
@@ -12,8 +12,10 @@
   exit
 - Official sync/async option comparisons for charset output, ASCII/color
   diagnostics, verbose warnings and all three deprecation option lists
-- Official `sass.info` runtime validation and complete deprecation metadata
-  bridging
+- Official `sass.info`, structured compiler-version metadata and complete
+  nullable deprecation release metadata bridging
+- Official validation behavior for unsupported syntax/style values and
+  unmodified deprecation option entries
 - Multi-file virtual project compilation
 - Sass module, forwarding, partial, index, CSS fallback and legacy import
   resolution with official-compatible precedence
@@ -45,7 +47,8 @@
   compiler options
 - Automatic removal of the untouched built-in example when loading a project
 - Virtual-project `NodePackageImporter` with `pkg:`, nearest `node_modules`,
-  scoped packages, package exports, nested dependencies and import-only files
+  scoped packages, package exports, conditions, array fallbacks, wildcard
+  precedence, nested dependencies and import-only files
 - Official partial-first ambiguity diagnostics and encoded document file names
 
 ## Platform validation and release work

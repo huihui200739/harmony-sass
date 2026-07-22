@@ -19,9 +19,10 @@ than a rewritten or reduced compiler.
 - Explicit release of abandoned asynchronous bridge jobs after timeout or
   page exit, while allowing the official compiler to finish its own active
   evaluation lifecycle
-- Runtime identity and version validation through official `sass.info`
-- Complete official Dart Sass deprecation metadata available through the
-  runtime bridge
+- Runtime identity and structured compiler-version validation through official
+  `sass.info` and `sass.Version`
+- Complete official Dart Sass deprecation metadata, including nullable
+  structured release versions, available through the runtime bridge
 - Full Dart Sass language behavior, including modules, mixins, functions,
   control flow, arithmetic, at-rules and built-in `sass:*` modules
 - Multi-file virtual projects with up to 500 selected stylesheets and package
@@ -56,6 +57,8 @@ than a rewritten or reduced compiler.
   `@debug` messages
 - Official quiet logging, Error CSS and batch stop-on-error behavior
 - Fatal deprecations selected by either deprecation ID or Dart Sass version
+- Official errors for unsupported input syntax, output style and invalid
+  deprecation option values without application-side correction
 - Official `quietDeps` classification for relative files, virtual load paths
   and package dependencies
 - Runtime batch compilation for multiple project entry stylesheets
@@ -147,17 +150,20 @@ synchronous and asynchronous compiler results, loaded URLs and asynchronous
 batch stop-on-error behavior. Compiler-option fixtures compare `charset`,
 `alertAscii`, `alertColor`, `verbose`, `fatalDeprecations`,
 `futureDeprecations` and `silenceDeprecations` through both compiler modes.
-They also verify explicit release of abandoned ArkWeb jobs. File-export
+They preserve whitespace and empty invalid option values, and compare official
+errors for unsupported syntax and output style. They also verify explicit
+release of abandoned ArkWeb jobs. File-export
 fixtures compare complete expanded and compressed CSS output, Source Map
 target names and URI-encoded output names with the official CLI. They also
 compare Error CSS, relative and absolute Source Map URLs, embedded Source Map
 data URIs, omitted embedded sources and compressed embedded maps
-byte-for-byte. Runtime checks also compare `sass.info` and the complete
-deprecation metadata table with the pinned official package. Importer fixtures
+byte-for-byte. Runtime checks also compare `sass.info`, structured compiler
+versions and the complete nullable deprecation metadata table with the pinned
+official package. Importer fixtures
 also compare file-versus-index precedence, Sass-versus-CSS precedence,
 explicit extensions, ambiguity handling, package exports, package conditions,
-nested dependencies and package error boundaries with the pinned official
-package.
+condition and array fallbacks, overlapping wildcard precedence, nested
+dependencies and package error boundaries with the pinned official package.
 
 ## Runtime boundaries
 

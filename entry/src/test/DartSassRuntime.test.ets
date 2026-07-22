@@ -188,15 +188,26 @@ export default function dartSassRuntimeTest() {
       );
       const metadata: SassRuntimeMetadata = DartSassRuntime.parseMetadata(
         '{"version":"1.101.3","info":"dart-sass\\t1.101.3",' +
+        '"compilerVersion":{"major":1,"minor":101,"patch":3,"text":"1.101.3"},' +
         '"compilerModes":["sync","async"],' +
         '"deprecations":[{"id":"import","status":"active",' +
-        '"description":"@import rules.","deprecatedIn":"1.80.0"}]}'
+        '"description":"@import rules.","deprecatedIn":"1.80.0",' +
+        '"obsoleteIn":null,' +
+        '"deprecatedInVersion":{"major":1,"minor":80,"patch":0,"text":"1.80.0"},' +
+        '"obsoleteInVersion":null}]}'
       );
       expect(metadata.version).assertEqual('1.101.3');
       expect(metadata.info).assertEqual('dart-sass\t1.101.3');
+      expect(metadata.compilerVersion.major).assertEqual(1);
+      expect(metadata.compilerVersion.minor).assertEqual(101);
+      expect(metadata.compilerVersion.patch).assertEqual(3);
+      expect(metadata.compilerVersion.text).assertEqual('1.101.3');
       expect(metadata.compilerModes.includes('async')).assertTrue();
       expect(metadata.deprecations[0].id).assertEqual('import');
       expect(metadata.deprecations[0].deprecatedIn).assertEqual('1.80.0');
+      expect(metadata.deprecations[0].deprecatedInVersion?.minor).assertEqual(80);
+      expect(metadata.deprecations[0].obsoleteIn).assertNull();
+      expect(metadata.deprecations[0].obsoleteInVersion).assertNull();
     });
 
     it('parses a successful runtime response', 0, (): void => {

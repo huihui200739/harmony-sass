@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## 0.14.0 - 2026-07-22
+
+- Added structured official compiler-version metadata and complete
+  `Version | null` release metadata for every Dart Sass deprecation.
+- Preserved deprecation option values exactly across the ArkTS-to-ArkWeb
+  bridge so whitespace and empty invalid values produce official diagnostics.
+- Passed unsupported input syntaxes and output styles to Dart Sass instead of
+  silently replacing them with defaults, for both synchronous and
+  asynchronous compilation.
+- Added official `NodePackageImporter` comparisons for unknown and null export
+  conditions, nested array fallbacks and overlapping wildcard precedence.
+
 ## 0.13.0 - 2026-07-22
 
 - Added the official `SourceSpan.context` field to structured errors,

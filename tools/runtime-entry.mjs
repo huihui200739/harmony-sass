@@ -34,15 +34,24 @@ function stringList(value) {
     .filter(item => item.length > 0);
 }
 
-function fatalDeprecationList(value) {
-  return stringList(value).map(item => {
-    if (!/^\d+\.\d+\.\d+$/.test(item)) return item;
+function deprecationList(value, supportVersions = false) {
+  if (!Array.isArray(value)) return [];
+  return value.map(item => {
+    if (!supportVersions ||
+      typeof item !== 'string' ||
+      !/^\d+\.\d+\.\d+$/.test(item)) {
+      return item;
+    }
     try {
       return sass.Version.parse(item);
     } catch {
       return item;
     }
   });
+}
+
+function fatalDeprecationList(value) {
+  return deprecationList(value, true);
 }
 
 function compileString(source, options) {
@@ -52,6 +61,17 @@ function compileString(source, options) {
 async function compileStringAsync(source, options) {
   const asyncCompiler = await asyncCompilerPromise;
   return asyncCompiler.compileStringAsync(source, options);
+}
+
+function serializeVersion(version) {
+  if (version === undefined) return undefined;
+  if (version === null) return null;
+  return {
+    major: Number(version.major),
+    minor: Number(version.minor),
+    patch: Number(version.patch),
+    text: text(version)
+  };
 }
 
 function serializeDeprecation(deprecation) {
@@ -64,12 +84,18 @@ function serializeDeprecation(deprecation) {
       : deprecation.description === null
         ? null
         : text(deprecation.description),
-    deprecatedIn: deprecation.deprecatedIn
-      ? text(deprecation.deprecatedIn)
-      : undefined,
-    obsoleteIn: deprecation.obsoleteIn
-      ? text(deprecation.obsoleteIn)
-      : undefined
+    deprecatedIn: deprecation.deprecatedIn === undefined
+      ? undefined
+      : deprecation.deprecatedIn === null
+        ? null
+        : text(deprecation.deprecatedIn),
+    obsoleteIn: deprecation.obsoleteIn === undefined
+      ? undefined
+      : deprecation.obsoleteIn === null
+        ? null
+        : text(deprecation.obsoleteIn),
+    deprecatedInVersion: serializeVersion(deprecation.deprecatedIn),
+    obsoleteInVersion: serializeVersion(deprecation.obsoleteIn)
   };
 }
 
@@ -77,6 +103,7 @@ function runtimeMetadata() {
   return {
     version: DART_SASS_VERSION,
     info: DART_SASS_INFO,
+    compilerVersion: serializeVersion(sass.Version.parse(DART_SASS_VERSION)),
     compilerModes: ['sync', 'async'],
     deprecations: Object.values(sass.deprecations).map(serializeDeprecation)
   };
@@ -268,8 +295,12 @@ function serializeError(error) {
 
 function normalizeRequest(value) {
   const request = value && typeof value === 'object' ? value : {};
-  const syntax = SUPPORTED_SYNTAXES.has(request.syntax) ? request.syntax : 'scss';
-  const style = SUPPORTED_STYLES.has(request.style) ? request.style : 'expanded';
+  const syntax = request.syntax === undefined || request.syntax === null
+    ? 'scss'
+    : text(request.syntax);
+  const style = request.style === undefined || request.style === null
+    ? 'expanded'
+    : text(request.style);
   const defaultEntry = syntax === 'indented'
     ? 'stdin.sass'
     : syntax === 'css'
@@ -298,8 +329,8 @@ function normalizeRequest(value) {
     verbose: request.verbose === true,
     errorCss: request.errorCss === true,
     fatalDeprecations: fatalDeprecationList(request.fatalDeprecations),
-    futureDeprecations: stringList(request.futureDeprecations),
-    silenceDeprecations: stringList(request.silenceDeprecations)
+    futureDeprecations: deprecationList(request.futureDeprecations),
+    silenceDeprecations: deprecationList(request.silenceDeprecations)
   };
 }
 
@@ -560,9 +591,11 @@ function resolvePackageExportsVariants(
   }
 
   if (matches.length > 1) {
-    throw new Error(
+    const header =
       `Unable to determine which of multiple potential resolutions found for ` +
-      `${subpath ?? 'root'} in ${packageName} should be used. \n\nFound:\n` +
+      `${subpath ?? 'root'} in ${packageName} should be used.`;
+    throw new Error(
+      `${header.padEnd(header.length + 1)}\n\nFound:\n` +
       matches.join('\n')
     );
   }

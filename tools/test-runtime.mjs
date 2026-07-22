@@ -44,6 +44,11 @@ vm.runInContext(runtimeSource, context);
 const runtimeMetadata = JSON.parse(context.harmonySass.getMetadata());
 assert.equal(runtimeMetadata.version, sassPackage.version);
 assert.equal(runtimeMetadata.info, sass.info);
+assert.deepEqual(
+  runtimeMetadata.compilerVersion,
+  versionSnapshot(sass.Version.parse(sassPackage.version)),
+  'runtime compiler version should match the pinned official Dart Sass package'
+);
 assert.deepEqual(runtimeMetadata.compilerModes, ['sync', 'async']);
 assert.deepEqual(
   runtimeMetadata.deprecations,
@@ -93,12 +98,33 @@ function deprecationSnapshot(deprecation) {
             ? null
             : String(deprecation.description)
         }),
-    ...(deprecation.deprecatedIn
-      ? { deprecatedIn: String(deprecation.deprecatedIn) }
-      : {}),
-    ...(deprecation.obsoleteIn
-      ? { obsoleteIn: String(deprecation.obsoleteIn) }
-      : {})
+    ...(deprecation.deprecatedIn === undefined
+      ? {}
+      : {
+          deprecatedIn: deprecation.deprecatedIn === null
+            ? null
+            : String(deprecation.deprecatedIn),
+          deprecatedInVersion: versionSnapshot(deprecation.deprecatedIn)
+        }),
+    ...(deprecation.obsoleteIn === undefined
+      ? {}
+      : {
+          obsoleteIn: deprecation.obsoleteIn === null
+            ? null
+            : String(deprecation.obsoleteIn),
+          obsoleteInVersion: versionSnapshot(deprecation.obsoleteIn)
+        })
+  };
+}
+
+function versionSnapshot(version) {
+  if (version === undefined) return undefined;
+  if (version === null) return null;
+  return {
+    major: Number(version.major),
+    minor: Number(version.minor),
+    patch: Number(version.patch),
+    text: String(version)
   };
 }
 
@@ -144,8 +170,8 @@ async function officialCompileSnapshot(source, request, asynchronous) {
   );
   const options = {
     url: new URL(`harmony-sass:/${entryPath}`),
-    syntax: request.syntax || 'scss',
-    style: request.style || 'expanded',
+    syntax: request.syntax ?? 'scss',
+    style: request.style ?? 'expanded',
     alertAscii: request.alertAscii === true,
     alertColor: request.alertColor === true,
     sourceMap: request.sourceMap === true,
@@ -154,7 +180,9 @@ async function officialCompileSnapshot(source, request, asynchronous) {
     quietDeps: request.quietDeps === true,
     verbose: request.verbose === true,
     fatalDeprecations: (request.fatalDeprecations || []).map(value =>
-      /^\d+\.\d+\.\d+$/.test(value) ? sass.Version.parse(value) : value
+      typeof value === 'string' && /^\d+\.\d+\.\d+$/.test(value)
+        ? sass.Version.parse(value)
+        : value
     ),
     futureDeprecations: request.futureDeprecations || [],
     silenceDeprecations: request.silenceDeprecations || [],
@@ -656,6 +684,36 @@ for (const fixture of optionFixtures) {
   assertCompileSnapshot(asyncActual, asyncExpected, `${fixture.name} async`);
 }
 
+for (const fixture of [
+  { name: 'unknown input syntax', request: { syntax: 'less' } },
+  { name: 'empty input syntax', request: { syntax: '' } },
+  { name: 'unknown output style', request: { style: 'nested' } },
+  { name: 'empty output style', request: { style: '' } }
+]) {
+  const source = '.options { color: red; }';
+  const syncActual = JSON.parse(context.harmonySass.compileProject({
+    source,
+    ...fixture.request
+  }));
+  const syncExpected = await officialCompileSnapshot(
+    source,
+    fixture.request,
+    false
+  );
+  assertCompileSnapshot(syncActual, syncExpected, `${fixture.name} sync`);
+
+  const asyncActual = await runtimeCompileProjectAsync({
+    source,
+    ...fixture.request
+  });
+  const asyncExpected = await officialCompileSnapshot(
+    source,
+    fixture.request,
+    true
+  );
+  assertCompileSnapshot(asyncActual, asyncExpected, `${fixture.name} async`);
+}
+
 const repeatedDeprecations = Array.from(
   { length: 8 },
   (_, index) => `.item-${index} { color: red(#123456); }`
@@ -698,36 +756,38 @@ for (const option of [
   'futureDeprecations',
   'silenceDeprecations'
 ]) {
-  const request = { [option]: ['not-a-deprecation'] };
-  const syncActual = JSON.parse(context.harmonySass.compileProject({
-    source: '.options { color: red; }',
-    ...request
-  }));
-  const syncExpected = await officialCompileSnapshot(
-    '.options { color: red; }',
-    request,
-    false
-  );
-  assertCompileSnapshot(
-    syncActual,
-    syncExpected,
-    `${option} validation sync`
-  );
+  for (const value of ['not-a-deprecation', ' import ', '']) {
+    const request = { [option]: [value] };
+    const syncActual = JSON.parse(context.harmonySass.compileProject({
+      source: '.options { color: red; }',
+      ...request
+    }));
+    const syncExpected = await officialCompileSnapshot(
+      '.options { color: red; }',
+      request,
+      false
+    );
+    assertCompileSnapshot(
+      syncActual,
+      syncExpected,
+      `${option} ${JSON.stringify(value)} validation sync`
+    );
 
-  const asyncActual = await runtimeCompileProjectAsync({
-    source: '.options { color: red; }',
-    ...request
-  });
-  const asyncExpected = await officialCompileSnapshot(
-    '.options { color: red; }',
-    request,
-    true
-  );
-  assertCompileSnapshot(
-    asyncActual,
-    asyncExpected,
-    `${option} validation async`
-  );
+    const asyncActual = await runtimeCompileProjectAsync({
+      source: '.options { color: red; }',
+      ...request
+    });
+    const asyncExpected = await officialCompileSnapshot(
+      '.options { color: red; }',
+      request,
+      true
+    );
+    assertCompileSnapshot(
+      asyncActual,
+      asyncExpected,
+      `${option} ${JSON.stringify(value)} validation async`
+    );
+  }
 }
 
 const project = JSON.parse(context.harmonySass.compileProject({
@@ -1343,6 +1403,37 @@ const packageFixtures = [
     ]
   },
   {
+    name: 'package export conditions skip unknown and null targets',
+    source: '@use "pkg:condition-fallback";',
+    files: [
+      {
+        path: 'node_modules/condition-fallback/package.json',
+        contents: JSON.stringify({
+          exports: {
+            '.': {
+              browser: './browser.scss',
+              sass: null,
+              style: './style.css',
+              default: './default.css'
+            }
+          }
+        })
+      },
+      {
+        path: 'node_modules/condition-fallback/browser.scss',
+        contents: '.browser-condition { color: red; }'
+      },
+      {
+        path: 'node_modules/condition-fallback/style.css',
+        contents: '.style-condition { color: green; }'
+      },
+      {
+        path: 'node_modules/condition-fallback/default.css',
+        contents: '.default-condition { color: blue; }'
+      }
+    ]
+  },
+  {
     name: 'scoped package exact subpath export',
     source: '@use "pkg:@scope/design/tokens"; .app { color: tokens.$brand; }',
     files: [
@@ -1361,6 +1452,31 @@ const packageFixtures = [
     ]
   },
   {
+    name: 'package export nested array and condition fallback',
+    source: '@use "pkg:nested-fallback";',
+    files: [
+      {
+        path: 'node_modules/nested-fallback/package.json',
+        contents: JSON.stringify({
+          exports: {
+            '.': [
+              null,
+              [],
+              {
+                sass: null,
+                default: './src/index.scss'
+              }
+            ]
+          }
+        })
+      },
+      {
+        path: 'node_modules/nested-fallback/src/index.scss',
+        contents: '.nested-fallback { color: #2468ac; }'
+      }
+    ]
+  },
+  {
     name: 'package wildcard subpath export',
     source: '@use "pkg:palette/theme/dark"; .app { color: dark.$brand; }',
     files: [
@@ -1375,6 +1491,29 @@ const packageFixtures = [
       {
         path: 'node_modules/palette/src/themes/dark.scss',
         contents: '$brand: #345678;'
+      }
+    ]
+  },
+  {
+    name: 'package wildcard trailer takes precedence',
+    source: '@use "pkg:wildcard-priority/theme/dark.scss";',
+    files: [
+      {
+        path: 'node_modules/wildcard-priority/package.json',
+        contents: JSON.stringify({
+          exports: {
+            './theme/*': './fallback/*.scss',
+            './theme/*.scss': './specific/*.scss'
+          }
+        })
+      },
+      {
+        path: 'node_modules/wildcard-priority/fallback/dark.scss.scss',
+        contents: '.fallback-wildcard { color: red; }'
+      },
+      {
+        path: 'node_modules/wildcard-priority/specific/dark.scss',
+        contents: '.specific-wildcard { color: green; }'
       }
     ]
   },

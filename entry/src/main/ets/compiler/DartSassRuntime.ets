@@ -12,12 +12,21 @@ export interface SassSourceSpan {
   end: SassSourcePosition;
 }
 
+export interface SassVersionMetadata {
+  major: number;
+  minor: number;
+  patch: number;
+  text: string;
+}
+
 export interface SassDeprecationMetadata {
   id: string;
   status: string;
   description?: string | null;
-  deprecatedIn?: string;
-  obsoleteIn?: string;
+  deprecatedIn?: string | null;
+  obsoleteIn?: string | null;
+  deprecatedInVersion?: SassVersionMetadata | null;
+  obsoleteInVersion?: SassVersionMetadata | null;
 }
 
 export interface SassCompileError {
@@ -147,6 +156,7 @@ export interface SassExportFinalizeResponse {
 export interface SassRuntimeMetadata {
   version: string;
   info: string;
+  compilerVersion: SassVersionMetadata;
   compilerModes: string[];
   deprecations: SassDeprecationMetadata[];
 }
