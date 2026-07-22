@@ -220,6 +220,7 @@ export default function dartSassRuntimeTest() {
       const response: SassCompileResponse = DartSassRuntime.parseResponse(
         '{"ok":false,"version":"1.101.3","error":{"message":"Undefined variable.",' +
         '"formatted":"Undefined variable.","sassStack":"app.scss 2:8  root stylesheet\\n",' +
+        '"stackTrace":"Error: Undefined variable.\\n    at compileString (sass.dart.js:1:2)",' +
         '"line":2,"column":8}}'
       );
       expect(response.ok).assertFalse();
@@ -228,6 +229,9 @@ export default function dartSassRuntimeTest() {
       expect(response.error?.sassStack).assertEqual(
         'app.scss 2:8  root stylesheet\n'
       );
+      expect(
+        response.error?.stackTrace?.includes('Error: Undefined variable')
+      ).assertTrue();
     });
 
     it('parses source maps, loaded URLs and warnings', 0, (): void => {

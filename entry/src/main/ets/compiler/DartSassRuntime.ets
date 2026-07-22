@@ -15,6 +15,7 @@ export interface SassCompileError {
   message: string;
   formatted: string;
   sassStack?: string;
+  stackTrace?: string;
   line: number;
   column: number;
   span?: SassSourceSpan;

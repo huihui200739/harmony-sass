@@ -252,6 +252,7 @@ function serializeError(error) {
       message: text(error && (error.sassMessage || error.message || error)),
       formatted: text(error && (error.message || error)),
       sassStack: text(error && error.sassStack) || undefined,
+      stackTrace: text(error && error.stack) || undefined,
       line: span ? span.start.line + 1 : 0,
       column: span ? span.start.column + 1 : 0,
       span: serializeSpan(span)

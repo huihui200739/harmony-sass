@@ -1,6 +1,6 @@
 # Roadmap
 
-## Completed through 0.11.0
+## Completed through 0.12.0
 
 - Official Dart Sass runtime integration
 - Official Dart Sass `1.101.3` language behavior
@@ -31,7 +31,8 @@
 - Official CLI comparisons for Source Maps with and without embedded sources,
   including compressed embedded maps
 - Deprecation controls by ID or compiler version, deprecation IDs, warning and
-  error Sass stacks, official `quietDeps` behavior and `@debug` messages
+  error Sass stacks, official `quietDeps` behavior, JavaScript runtime stack
+  traces and `@debug` messages
 - Official `quiet`, Error CSS and batch `stopOnError` behavior
 - Multiple-entry batch compilation
 - HarmonyOS PC open, save, export, copy and keyboard workflows

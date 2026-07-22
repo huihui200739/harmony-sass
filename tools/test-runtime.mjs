@@ -217,6 +217,29 @@ function assertCompileSnapshot(actual, expected, label) {
   }
 }
 
+function assertRuntimeStackTrace(error, label) {
+  assert.ok(error?.stackTrace, `${label} should expose the official JS stack`);
+  assert.match(
+    error.stackTrace,
+    /^Error: /,
+    `${label} stack should retain the JS Error prefix`
+  );
+  assert.match(
+    error.stackTrace,
+    /root stylesheet/,
+    `${label} stack should retain the Sass source location`
+  );
+}
+
+function withoutRuntimeStackTraces(value) {
+  const copy = JSON.parse(JSON.stringify(value));
+  if (copy.error) delete copy.error.stackTrace;
+  for (const result of copy.results || []) {
+    if (result.error) delete result.error.stackTrace;
+  }
+  return copy;
+}
+
 async function officialProjectCss(source, files) {
   const root = await mkdtemp(resolve(tmpdir(), 'harmony-sass-reference-'));
   try {
@@ -1779,10 +1802,18 @@ const stoppedAsyncBatch = await runtimeCompileBatchAsync({
     }
   ]
 });
+assertRuntimeStackTrace(
+  stoppedBatch.results[0].error,
+  'sync batch runtime error'
+);
+assertRuntimeStackTrace(
+  stoppedAsyncBatch.results[0].error,
+  'async batch runtime error'
+);
 assert.deepEqual(
-  stoppedAsyncBatch,
-  stoppedBatch,
-  'async batch stop-on-error and Error CSS should match the sync bridge'
+  withoutRuntimeStackTraces(stoppedAsyncBatch),
+  withoutRuntimeStackTraces(stoppedBatch),
+  'async batch stop-on-error and Error CSS should match apart from evaluator stacks'
 );
 
 const errorCss = await compareCliErrorCss('@error "坏*/";');
@@ -1800,9 +1831,17 @@ assert.equal(failure.error.line, 1);
 assert.equal(failure.error.column, 16);
 assert.match(failure.error.message, /Undefined variable/);
 assert.match(failure.error.sassStack, /root stylesheet/);
+assertRuntimeStackTrace(failure.error, 'sync runtime error');
 assert.equal(failure.error.span.start.line, 1);
 assert.equal(failure.error.span.end.column, 24);
 
+const asyncFailure = await runtimeCompileProjectAsync({
+  source: '.card { color: $missing; }'
+});
+assert.equal(asyncFailure.ok, false);
+assertRuntimeStackTrace(asyncFailure.error, 'async runtime error');
+assert.match(asyncFailure.error.stackTrace, /_asyncStartSync|_EvaluateVisitor/);
+
 console.log(
-  `Verified ${fixtures.length} single-document fixtures, compiler options, async lifecycle, package resolution, diagnostics, deprecations, and project workflows against Dart Sass ${sassPackage.version}.`
+  `Verified ${fixtures.length} single-document fixtures, compiler options, async lifecycle, package resolution, diagnostics, deprecations, runtime stack traces, and project workflows against Dart Sass ${sassPackage.version}.`
 );

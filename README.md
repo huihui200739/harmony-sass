@@ -52,7 +52,7 @@ than a rewritten or reduced compiler.
   outside the app, with conflict protection for unsaved edits
 - Save-all behavior for modified files in a loaded project
 - Structured errors, warnings, deprecation IDs, warning and error Sass stacks,
-  and `@debug` messages
+  JavaScript runtime stack traces and `@debug` messages
 - Official quiet logging, Error CSS and batch stop-on-error behavior
 - Fatal deprecations selected by either deprecation ID or Dart Sass version
 - Official `quietDeps` classification for relative files, virtual load paths

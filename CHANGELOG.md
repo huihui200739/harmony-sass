@@ -2,6 +2,14 @@
 
 All notable changes to this project are documented here.
 
+## 0.12.0 - 2026-07-22
+
+- Added the official browser runtime JavaScript `Error.stack` to structured
+  compiler errors for synchronous and asynchronous bridge callers.
+- Preserved the existing Sass message, Sass stack, source span and two-pane UI.
+- Added runtime and ArkTS parser coverage for synchronous and asynchronous
+  stack-trace diagnostics.
+
 ## 0.11.0 - 2026-07-22
 
 - Added explicit release of abandoned ArkWeb asynchronous jobs after timeout
