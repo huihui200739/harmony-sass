@@ -17,6 +17,10 @@ export default function sassProjectTest() {
       expect(SassProject.isProjectFilePath('._main.scss')).assertFalse();
       expect(SassProject.isProjectFilePath('styles/.__tokens.scss')).assertFalse();
       expect(SassProject.isProjectFilePath('__MACOSX/styles/main.scss')).assertFalse();
+      expect(SassProject.isProjectFilePath('.git/styles/main.scss')).assertFalse();
+      expect(SassProject.isProjectFilePath('dist/styles/main.css')).assertFalse();
+      expect(SassProject.isProjectFilePath('build/styles/main.scss')).assertFalse();
+      expect(SassProject.isProjectFilePath('node_modules/theme/index.scss')).assertTrue();
     });
 
     it('derives relative virtual paths from selected URIs', 0, (): void => {
@@ -134,6 +138,10 @@ export default function sassProjectTest() {
       const names: string[] = SassProject.outputFileNames(entries, '.css');
       expect(names[0]).assertEqual('src-app.css');
       expect(names[1]).assertEqual('admin-app.css');
+      expect(SassProject.outputRelativePath(
+        'src/components/app.scss',
+        '.css'
+      )).assertEqual('src/components/app.css');
       const editableFiles: SassEditorFile[] =
         SassProject.editableStylesheetFiles(files);
       expect(editableFiles.length).assertEqual(6);
@@ -158,6 +166,21 @@ export default function sassProjectTest() {
         SassProject.updateSyntax(files, 'template.scss', 'indented');
       expect(updated[0].syntax).assertEqual('indented');
       expect(files[0].syntax).assertEqual('scss');
+    });
+
+    it('keeps projects larger than the picker item limit', 0, (): void => {
+      const files: SassEditorFile[] = [];
+      for (let index: number = 0; index < 1200; index++) {
+        files.push({
+          path: `src/pages/page-${index}.scss`,
+          uri: `file://project/src/pages/page-${index}.scss`,
+          contents: `.page-${index} { color: blue; }`,
+          syntax: 'scss'
+        });
+      }
+      const entries: string[] = SassProject.entryPaths(files);
+      expect(entries.length).assertEqual(1200);
+      expect(entries[1199]).assertEqual('src/pages/page-1199.scss');
     });
 
     it('removes only an untouched placeholder when a real project is loaded', 0, (): void => {

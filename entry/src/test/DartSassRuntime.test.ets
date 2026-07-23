@@ -96,8 +96,8 @@ export default function dartSassRuntimeTest() {
       const script: string = DartSassRuntime.createBatchCompileScript(request);
       expect(script.startsWith('globalThis.harmonySass.compileBatch(')).assertTrue();
       const response: SassBatchCompileResponse = DartSassRuntime.parseBatchResponse(
-        '{"ok":true,"version":"1.101.3","results":[' +
-        '{"entryPath":"src/app.scss","ok":true,"version":"1.101.3","css":".app {}"}]}'
+        '{"ok":true,"version":"1.101.6","results":[' +
+        '{"entryPath":"src/app.scss","ok":true,"version":"1.101.6","css":".app {}"}]}'
       );
       expect(response.results[0].entryPath).assertEqual('src/app.scss');
     });
@@ -187,8 +187,8 @@ export default function dartSassRuntimeTest() {
         'globalThis.harmonySass.getMetadata()'
       );
       const metadata: SassRuntimeMetadata = DartSassRuntime.parseMetadata(
-        '{"version":"1.101.3","info":"dart-sass\\t1.101.3",' +
-        '"compilerVersion":{"major":1,"minor":101,"patch":3,"text":"1.101.3"},' +
+        '{"version":"1.101.6","info":"dart-sass\\t1.101.6",' +
+        '"compilerVersion":{"major":1,"minor":101,"patch":6,"text":"1.101.6"},' +
         '"compilerModes":["sync","async"],' +
         '"deprecations":[{"id":"import","status":"active",' +
         '"description":"@import rules.","deprecatedIn":"1.80.0",' +
@@ -196,12 +196,12 @@ export default function dartSassRuntimeTest() {
         '"deprecatedInVersion":{"major":1,"minor":80,"patch":0,"text":"1.80.0"},' +
         '"obsoleteInVersion":null}]}'
       );
-      expect(metadata.version).assertEqual('1.101.3');
-      expect(metadata.info).assertEqual('dart-sass\t1.101.3');
+      expect(metadata.version).assertEqual('1.101.6');
+      expect(metadata.info).assertEqual('dart-sass\t1.101.6');
       expect(metadata.compilerVersion.major).assertEqual(1);
       expect(metadata.compilerVersion.minor).assertEqual(101);
-      expect(metadata.compilerVersion.patch).assertEqual(3);
-      expect(metadata.compilerVersion.text).assertEqual('1.101.3');
+      expect(metadata.compilerVersion.patch).assertEqual(6);
+      expect(metadata.compilerVersion.text).assertEqual('1.101.6');
       expect(metadata.compilerModes.includes('async')).assertTrue();
       expect(metadata.deprecations[0].id).assertEqual('import');
       expect(metadata.deprecations[0].deprecatedIn).assertEqual('1.80.0');
@@ -212,16 +212,16 @@ export default function dartSassRuntimeTest() {
 
     it('parses a successful runtime response', 0, (): void => {
       const response: SassCompileResponse = DartSassRuntime.parseResponse(
-        '{"ok":true,"version":"1.101.3","css":".a {\\n  color: red;\\n}"}'
+        '{"ok":true,"version":"1.101.6","css":".a {\\n  color: red;\\n}"}'
       );
       expect(response.ok).assertTrue();
-      expect(response.version).assertEqual('1.101.3');
+      expect(response.version).assertEqual('1.101.6');
       expect(response.css).assertEqual('.a {\n  color: red;\n}');
     });
 
     it('accepts a JSON string returned by alternate ArkWeb versions', 0, (): void => {
       const response: SassCompileResponse = DartSassRuntime.parseResponse(
-        '"{\\"ok\\":true,\\"version\\":\\"1.101.3\\",\\"css\\":\\".a {}\\"}"'
+        '"{\\"ok\\":true,\\"version\\":\\"1.101.6\\",\\"css\\":\\".a {}\\"}"'
       );
       expect(response.ok).assertTrue();
       expect(response.css).assertEqual('.a {}');
@@ -229,7 +229,7 @@ export default function dartSassRuntimeTest() {
 
     it('parses structured compiler errors', 0, (): void => {
       const response: SassCompileResponse = DartSassRuntime.parseResponse(
-        '{"ok":false,"version":"1.101.3","error":{"message":"Undefined variable.",' +
+        '{"ok":false,"version":"1.101.6","error":{"message":"Undefined variable.",' +
         '"formatted":"Undefined variable.","sassStack":"app.scss 2:8  root stylesheet\\n",' +
         '"stackTrace":"Error: Undefined variable.\\n    at compileString (sass.dart.js:1:2)",' +
         '"line":2,"column":8,"span":{"text":"$missing",' +
@@ -253,7 +253,7 @@ export default function dartSassRuntimeTest() {
 
     it('parses source maps, loaded URLs and warnings', 0, (): void => {
       const response: SassCompileResponse = DartSassRuntime.parseResponse(
-        '{"ok":true,"version":"1.101.3","css":".a {}",' +
+        '{"ok":true,"version":"1.101.6","css":".a {}",' +
         '"sourceMap":"{\\"version\\":3}","loadedUrls":["harmony-sass:/app.scss"],' +
         '"warnings":[{"message":"deprecated","deprecation":true,' +
         '"deprecationType":"global-builtin","deprecationMetadata":{' +

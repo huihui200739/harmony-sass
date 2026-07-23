@@ -2,6 +2,22 @@
 
 All notable changes to this project are documented here.
 
+## 0.15.0 - 2026-07-23
+
+- Confirmed the bundled official Dart Sass runtime is the current npm
+  `latest` release, `1.101.6`.
+- Added dependency-graph incremental compilation so ordinary changes only
+  rebuild affected batch entries.
+- Added input-directory to output-directory mapping with automatic CSS and
+  Source Map creation, update, embedded-map cleanup and deletion of registered
+  stale outputs.
+- Added rename recognition across separate directory-scan rounds, ignore rules,
+  permission recovery, sleep/wake recovery and page-lifecycle watcher reuse.
+- Removed the application-level 500-file project limit and batched large-project
+  reads and signature checks.
+- Added project-model coverage for affected entries, output paths and rename
+  handling.
+
 ## 0.14.2 - 2026-07-22
 
 - Decoded `pkg:` package names and subpaths segment-by-segment to match the
@@ -120,7 +136,7 @@ All notable changes to this project are documented here.
 ## 0.6.0 - 2026-07-22
 
 - Added a virtual-project `NodePackageImporter` based on the official Dart Sass
-  `1.101.3` implementation.
+  `1.101.6` implementation.
 - Added `pkg:` URL resolution, nearest `node_modules` lookup, scoped packages,
   package `exports`, wildcard exports and manifest-order Sass conditions.
 - Added package `sass`/`style`, partial, index, direct subpath and import-only
@@ -192,7 +208,7 @@ All notable changes to this project are documented here.
 
 ## 0.2.0 - 2026-07-21
 
-- Replaced the handwritten `ScssLite` subset with official Dart Sass 1.101.3.
+- Replaced the handwritten `ScssLite` subset with official Dart Sass 1.101.6.
 - Added a local, invisible ArkWeb runtime without changing the visible editor UI.
 - Added support for mixins, functions, control flow, arithmetic, at-rules and
   built-in Sass modules.

@@ -3,7 +3,7 @@
 ## Implemented
 
 - [x] Native HarmonyOS PC two-pane editor UI
-- [x] Official Dart Sass `1.101.3` browser runtime
+- [x] Official Dart Sass `1.101.6` browser runtime
 - [x] Official `sass.Compiler` and `sass.AsyncCompiler` reuse for the ArkWeb
       page lifecycle
 - [x] Official `AsyncCompiler.compileStringAsync()` editor and batch workflows
@@ -43,7 +43,13 @@
 - [x] Open, save, save-as, save-all, copy and keyboard workflows
 - [x] URI-safe document-provider file names containing encoded `#` or `?`
 - [x] Automatic compilation and authorized external-file reload
-- [x] Recursive folder discovery with deduplication and a 500-file limit
+- [x] Recursive folder discovery with deduplication and no application-level
+      file-count limit
+- [x] Dependency graph and affected-entry incremental compilation
+- [x] Input/output directory mapping and registered CSS/Source Map cleanup
+- [x] Rename detection, ignore rules, permission recovery and sleep/wake
+      recovery
+- [x] Batched file reads and signatures for large projects
 - [x] Project and compiler-option session restoration
 - [x] ArkTS tests, official runtime comparisons and unsigned HAP build
 
@@ -60,7 +66,7 @@
 - [ ] External JavaScript `Logger` callback objects
 - [ ] Filesystem-backed `NodePackageImporter` outside the loaded virtual project
 - [ ] Dart Sass Embedded Protocol
-- [ ] Complete Dart Sass CLI stdin/stdout, directory mapping, flags, watch and
+- [ ] Complete Dart Sass CLI stdin/stdout, every CLI flag, CLI watch mode and
       `--update` target/dependency timestamp graph
 - [ ] Filesystem file-entry npm APIs (`compile()` and `compileAsync()`),
       JavaScript callback/value object APIs and the legacy JavaScript API
@@ -71,7 +77,9 @@ objects that cannot cross the current ArkTS-to-ArkWeb JSON bridge. The portable
 package-resolution behavior is implemented for files loaded into the virtual
 project. Authorized-file polling and automatic recompilation are implemented,
 but they are not presented as CLI `--update`, which additionally depends on
-output and transitive dependency timestamps. The remaining items are documented
-as platform boundaries rather than replaced with incompatible approximations.
+output and transitive dependency timestamps. The native app now has a separate
+dependency-aware watcher and output synchronizer; the remaining items are
+documented as platform boundaries rather than replaced with incompatible
+approximations.
 The official browser build also rejects legacy `render()` and `renderSync()`
 when only the `data` string option is used.

@@ -8,6 +8,17 @@ export interface SassEditorFile {
 }
 
 export class SassProject {
+  private static readonly IGNORED_DIRECTORY_NAMES: string[] = [
+    '.git',
+    '.hg',
+    '.svn',
+    '.sass-cache',
+    'build',
+    'dist',
+    'out',
+    '__macosx'
+  ];
+
   static normalizePath(value: string): string {
     const normalized: string[] = [];
     const parts: string[] = value.replaceAll('\\', '/').split('/');
@@ -54,9 +65,12 @@ export class SassProject {
   static isProjectFilePath(path: string): boolean {
     const normalized: string = SassProject.normalizePath(path);
     const segments: string[] = normalized.split('/');
-    if (segments.some((segment: string): boolean =>
-      segment.startsWith('._') || segment === '__MACOSX'
-    )) {
+    if (segments.some((segment: string): boolean => {
+      const lowerSegment: string = segment.toLowerCase();
+      return segment.startsWith('.') ||
+        segment.startsWith('._') ||
+        SassProject.IGNORED_DIRECTORY_NAMES.includes(lowerSegment);
+    })) {
       return false;
     }
     return SassProject.isStylesheetPath(path) ||
@@ -273,6 +287,16 @@ export class SassProject {
       names.push(outputName);
     }
     return names;
+  }
+
+  static outputRelativePath(entryPath: string, suffix: string): string {
+    const normalized: string = SassProject.normalizePath(entryPath);
+    const segments: string[] = normalized.split('/');
+    const name: string = segments.pop() ?? normalized;
+    const dotIndex: number = name.lastIndexOf('.');
+    const stem: string = dotIndex > 0 ? name.slice(0, dotIndex) : name;
+    segments.push(stem + suffix);
+    return segments.join('/');
   }
 
   static replaceUri(files: SassEditorFile[], path: string, uri: string): SassEditorFile[] {

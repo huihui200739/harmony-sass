@@ -2,7 +2,7 @@ import * as sass from 'sass';
 
 const DART_SASS_INFO = sass.info;
 const DART_SASS_VERSION =
-  DART_SASS_INFO.split('\n')[0].split('\t')[1] || '1.101.3';
+  DART_SASS_INFO.split('\n')[0].split('\t')[1] || '1.101.6';
 const compiler = sass.initCompiler();
 const asyncCompilerPromise = sass.initAsyncCompiler();
 const asyncJobs = new Map();

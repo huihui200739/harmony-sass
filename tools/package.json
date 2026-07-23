@@ -8,7 +8,7 @@
     "verify": "npm run build && npm test"
   },
   "dependencies": {
-    "sass": "1.101.3"
+    "sass": "1.101.6"
   },
   "devDependencies": {
     "esbuild": "0.28.1"

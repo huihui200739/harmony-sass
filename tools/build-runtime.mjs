@@ -21,7 +21,7 @@ await build({
   minify: true,
   legalComments: 'external',
   banner: {
-    js: '/* Harmony Sass runtime: official Dart Sass 1.101.3 browser build. */'
+    js: '/* Harmony Sass runtime: official Dart Sass 1.101.6 browser build. */'
   }
 });
 
@@ -50,7 +50,7 @@ await writeFile(
   legalFile,
   `Harmony Sass bundles the official Dart Sass JavaScript distribution.
 Upstream: https://github.com/sass/dart-sass
-Version: 1.101.3
+Version: 1.101.6
 
 ${legal}`,
   'utf8'

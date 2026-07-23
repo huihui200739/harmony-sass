@@ -1,9 +1,9 @@
 # Roadmap
 
-## Completed through 0.14.2
+## Completed through 0.15.0
 
 - Official Dart Sass runtime integration
-- Official Dart Sass `1.101.3` language behavior
+- Official Dart Sass `1.101.6` language behavior
 - Official `sass.Compiler` and `sass.AsyncCompiler` reuse for the ArkWeb page
   lifecycle
 - Official asynchronous editor and batch compilation through
@@ -41,8 +41,13 @@
 - HarmonyOS PC open, save, export, copy and keyboard workflows
 - Save-all for modified project files
 - Automatic compilation, external file reloading and entry-file switching
-- Recursive folder project loading with deduplication and a global 500-file
-  limit
+- Recursive folder project loading with deduplication and no application-level
+  file-count limit
+- Dependency-graph incremental compilation for affected entries
+- Input-directory to output-directory mapping with registered CSS/Source Map
+  creation, update and cleanup
+- Rename detection, ignore rules, permission recovery and sleep/wake recovery
+- Batched file reads and signatures for large projects
 - Session restoration for project files, active file, per-file syntax and
   compiler options
 - Automatic removal of the untouched built-in example when loading a project
@@ -69,7 +74,8 @@ Embedded Protocol:
 - filesystem-backed `NodePackageImporter` outside the loaded virtual project
 - Dart Sass Embedded Protocol
 - the complete Dart Sass CLI process, CLI watch contract and `--update`
-  target/dependency timestamp graph
+  target/dependency timestamp graph; the native app now provides its own
+  dependency-aware watcher and output synchronization
 - filesystem file-entry npm APIs (`compile()` and `compileAsync()`),
   JavaScript callback/value object APIs and the legacy JavaScript API surface
 

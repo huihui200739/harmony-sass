@@ -10,7 +10,7 @@ than a rewritten or reduced compiler.
 ## Current implementation
 
 - Native HarmonyOS ArkTS two-pane editor UI
-- Official Dart Sass `1.101.3` compiler
+- Official Dart Sass `1.101.6` compiler
 - Page-lifecycle reuse of the official `sass.Compiler` and
   `sass.AsyncCompiler`
 - Editor and batch compilation through official
@@ -25,8 +25,8 @@ than a rewritten or reduced compiler.
   structured release versions, available through the runtime bridge
 - Full Dart Sass language behavior, including modules, mixins, functions,
   control flow, arithmetic, at-rules and built-in `sass:*` modules
-- Multi-file virtual projects with up to 500 selected stylesheets and package
-  manifests
+- Multi-file virtual projects with no application-level file-count limit;
+  one picker operation may still be capped by the HarmonyOS picker API
 - Mixed file and folder selection with recursive Sass/CSS and `package.json`
   discovery
 - Relative `@use`, `@forward` and legacy `@import`
@@ -82,19 +82,21 @@ All project files are passed to in-memory Dart Sass importers. The official
 compiler therefore resolves project imports without uploading source code or
 requiring unrestricted filesystem access from ArkWeb. Loaded `package.json`
 files participate in `pkg:` resolution but remain hidden from the stylesheet
-entry selector.
+entry selector. Folder discovery is unbounded by the application and reads
+files in batches to keep large projects responsive.
 
 An untouched built-in example is removed automatically when a real project is
 loaded. Edited untitled content is retained. Project selections are
-deduplicated and limited to 500 project files across all selected files and
-folders.
+deduplicated. Recursive folder loading has no application-level file-count
+limit; the HarmonyOS picker may still limit one manual multi-file selection to
+500 items.
 
 ## Upstream source
 
 - Dart Sass implementation:
   [sass/dart-sass](https://github.com/sass/dart-sass)
 - Pinned `NodePackageImporter` source:
-  [dart-sass 1.101.3 node_package.dart](https://github.com/sass/dart-sass/blob/1.101.3/lib/src/importer/node_package.dart)
+  [dart-sass 1.101.6 node_package.dart](https://github.com/sass/dart-sass/blob/1.101.6/lib/src/importer/node_package.dart)
 - Sass language specification:
   [sass/sass](https://github.com/sass/sass)
 
@@ -199,14 +201,20 @@ Harmony Sass therefore does not present a different implementation under
 those API names.
 
 The application watches authorized project files and automatically recompiles
-when they change. This provides the native editor workflow, but it is not
+when they change. It maintains a dependency graph so ordinary edits only
+recompile affected entries, while additions, removals, renames, option changes,
+permission recovery and sleep/wake recovery trigger a full refresh. The first
+CSS export chooses an output directory; later exports automatically preserve
+the input directory structure and create, update or remove registered CSS and
+Source Map files. This provides the native editor workflow, but it is not
 presented as the CLI `--update` contract because the CLI also compares output
 timestamps and transitive filesystem dependencies across a process-managed
 stylesheet graph.
 
-Recursive folder selection depends on HarmonyOS document-provider behavior.
-It builds and is covered by project-model tests, but still requires validation
-on the target HarmonyOS PC and document provider.
+Recursive folder selection and long-running monitoring depend on HarmonyOS
+document-provider behavior. The app build and project-model tests cover the
+implementation, while final permission, sleep/wake and large-project behavior
+still require validation on target HarmonyOS PC hardware.
 
 ## Licensing
 

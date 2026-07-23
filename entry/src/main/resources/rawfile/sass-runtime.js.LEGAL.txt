@@ -1,6 +1,6 @@
 Harmony Sass bundles the official Dart Sass JavaScript distribution.
 Upstream: https://github.com/sass/dart-sass
-Version: 1.101.3
+Version: 1.101.6
 
 Bundled license information:
 
