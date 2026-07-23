@@ -1,7 +1,7 @@
 {
   "name": "entry",
   "version": "1.0.0",
-  "description": "Official Dart Sass compilation for HarmonyOS PC.",
+  "description": "在鸿蒙 PC 上运行官方 Dart Sass 编译功能。",
   "main": "",
   "author": "",
   "license": "",

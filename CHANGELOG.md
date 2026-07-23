@@ -1,224 +1,171 @@
-# Changelog
+# 更新日志
 
-All notable changes to this project are documented here.
+本项目的重要变更均记录在此。
 
 ## 0.15.0 - 2026-07-23
 
-- Confirmed the bundled official Dart Sass runtime is the current npm
-  `latest` release, `1.101.6`.
-- Added dependency-graph incremental compilation so ordinary changes only
-  rebuild affected batch entries.
-- Added input-directory to output-directory mapping with automatic CSS and
-  Source Map creation, update, embedded-map cleanup and deletion of registered
-  stale outputs.
-- Added rename recognition across separate directory-scan rounds, ignore rules,
-  permission recovery, sleep/wake recovery and page-lifecycle watcher reuse.
-- Removed the application-level 500-file project limit and batched large-project
-  reads and signature checks.
-- Added project-model coverage for affected entries, output paths and rename
-  handling.
+- 确认内置官方 Dart Sass 运行时为当前 npm `latest` 版本 `1.101.6`
+- 新增依赖图增量编译，普通文件变化只重新构建受影响的批量入口
+- 新增输入目录到输出目录映射，自动创建和更新 CSS、Source Map，清理内嵌 Map
+  后遗留的外部文件，并删除已登记的过期输出
+- 新增跨目录扫描轮次的重命名识别、忽略规则、权限恢复、休眠恢复和页面生命周期
+  监视复用
+- 移除应用层 500 文件项目限制，对大型项目采用分批读取和签名检查
+- 新增受影响入口、输出路径及重命名处理的项目模型测试
 
 ## 0.14.2 - 2026-07-22
 
-- Decoded `pkg:` package names and subpaths segment-by-segment to match the
-  official Dart URI conversion used by `NodePackageImporter`.
-- Added official comparisons for percent-encoded package names and subpaths,
-  duplicate separators, dot segments, normalized export targets and
-  containing-stylesheet resolution precedence.
+- 对 `pkg:` 包名和子路径按路径段解码，与 `NodePackageImporter` 使用的官方 Dart
+  URI 转换保持一致
+- 新增百分号编码包名和子路径、重复分隔符、点路径段、规范化导出目标和包含样式表
+  解析优先级的官方对比
 
 ## 0.14.1 - 2026-07-22
 
-- Matched official `NodePackageImporter` rejection of empty `pkg:` authority,
-  query and fragment delimiters in synchronous and asynchronous compilation.
-- Added official Dart Sass comparisons for malformed package URLs that the
-  JavaScript URL API otherwise normalizes away.
+- 同步及异步编译均匹配官方 `NodePackageImporter` 对空 `pkg:` authority、
+  查询参数和片段分隔符的拒绝行为
+- 新增非法包 URL 的官方 Dart Sass 对比，覆盖 JavaScript URL API 会自动规范化的
+  边界情况
 
 ## 0.14.0 - 2026-07-22
 
-- Added structured official compiler-version metadata and complete
-  `Version | null` release metadata for every Dart Sass deprecation.
-- Preserved deprecation option values exactly across the ArkTS-to-ArkWeb
-  bridge so whitespace and empty invalid values produce official diagnostics.
-- Passed unsupported input syntaxes and output styles to Dart Sass instead of
-  silently replacing them with defaults, for both synchronous and
-  asynchronous compilation.
-- Added official `NodePackageImporter` comparisons for unknown and null export
-  conditions, nested array fallbacks and overlapping wildcard precedence.
+- 新增结构化官方编译器版本元数据，以及每项 Dart Sass 弃用信息的完整
+  `Version | null` 版本元数据
+- 在 ArkTS 到 ArkWeb 桥接中完整保留弃用选项值，使空白和无效空值产生官方诊断
+- 同步及异步编译均将不支持的输入语法和输出格式直接传递给 Dart Sass，不再静默
+  替换为默认值
+- 新增未知或空导出条件、嵌套数组回退和重叠通配符优先级的官方
+  `NodePackageImporter` 对比
 
 ## 0.13.0 - 2026-07-22
 
-- Added the official `SourceSpan.context` field to structured errors,
-  deprecation warnings and debug messages when Dart Sass provides it.
-- Added the complete official `Deprecation` metadata object to each structured
-  deprecation warning while preserving the existing deprecation ID field.
-- Added official synchronous/asynchronous comparisons and ArkTS parsing
-  coverage for diagnostic source context and warning metadata.
+- 在 Dart Sass 提供时，为结构化错误、弃用警告和调试消息加入官方
+  `SourceSpan.context`
+- 为每条结构化弃用警告加入完整官方 `Deprecation` 元数据对象，同时保留已有弃用 ID
+- 新增诊断源码上下文和警告元数据的官方同步/异步对比及 ArkTS 解析测试
 
 ## 0.12.0 - 2026-07-22
 
-- Added the official browser runtime JavaScript `Error.stack` to structured
-  compiler errors for synchronous and asynchronous bridge callers.
-- Preserved the existing Sass message, Sass stack, source span and two-pane UI.
-- Added runtime and ArkTS parser coverage for synchronous and asynchronous
-  stack-trace diagnostics.
+- 为同步及异步桥接调用者加入官方浏览器运行时 JavaScript `Error.stack`
+- 保留原有 Sass 消息、Sass 调用栈、源码范围和双栏界面
+- 新增同步及异步堆栈诊断的运行时和 ArkTS 解析测试
 
 ## 0.11.0 - 2026-07-22
 
-- Added explicit release of abandoned ArkWeb asynchronous jobs after timeout
-  and when the editor page exits.
-- Cleared retained job state during runtime page teardown while preserving the
-  official `AsyncCompiler` disposal lifecycle.
-- Added official synchronous and asynchronous comparisons for `charset`,
-  `alertAscii`, `alertColor`, `verbose`, `fatalDeprecations`,
-  `futureDeprecations` and `silenceDeprecations`.
-- Verified and documented that the official browser distribution rejects
-  legacy `render()` and `renderSync()`, including `data` string input, because
-  those APIs require Node.js.
+- 在超时和编辑器页面退出时主动释放废弃的 ArkWeb 异步任务
+- 页面运行时销毁时清理保留的任务状态，同时保持官方 `AsyncCompiler` 释放生命周期
+- 新增 `charset`、`alertAscii`、`alertColor`、`verbose`、
+  `fatalDeprecations`、`futureDeprecations` 和 `silenceDeprecations`
+  的官方同步及异步对比
+- 验证并记录官方浏览器发行版会拒绝传统 `render()` 和 `renderSync()`，
+  包括 `data` 字符串输入，因为这些 API 需要 Node.js
 
 ## 0.10.0 - 2026-07-22
 
-- Added page-lifecycle reuse of the official `sass.AsyncCompiler` alongside
-  the existing synchronous compiler.
-- Added an ArkWeb asynchronous job bridge for official
-  `AsyncCompiler.compileStringAsync()` results without changing the two-pane
-  UI.
-- Moved editor compilation and multiple-entry batch export to the official
-  asynchronous evaluator while retaining the synchronous runtime bridge for
-  compatibility.
-- Added official synchronous-versus-asynchronous fixture comparisons,
-  asynchronous batch stop-on-error coverage and ArkTS bridge tests.
+- 在页面生命周期内复用官方 `sass.AsyncCompiler`，与现有同步编译器并行使用
+- 新增 ArkWeb 异步任务桥接，在不改变双栏界面的情况下返回官方
+  `AsyncCompiler.compileStringAsync()` 结果
+- 编辑器编译和多入口批量导出迁移至官方异步求值器，同时保留同步运行时桥接
+- 新增官方同步/异步夹具对比、异步批量遇错停止测试和 ArkTS 桥接测试
 
 ## 0.9.0 - 2026-07-22
 
-- Reused an official `sass.Compiler` instance for the ArkWeb page lifecycle
-  while preserving the existing two-pane UI and compilation results.
-- Exposed and validated the bundled compiler through official `sass.info`
-  metadata instead of relying only on a hard-coded version label.
-- Bridged the complete official deprecation metadata table, including IDs,
-  statuses, release versions and nullable descriptions.
-- Added byte-for-byte official CLI comparisons for external Source Maps
-  without embedded sources and compressed CSS with an embedded Source Map.
-- Documented the remaining `--update` boundary: the native application
-  supports authorized-file change detection and automatic recompilation, but
-  does not reproduce the CLI process's target and dependency timestamp graph.
+- 在 ArkWeb 页面生命周期内复用官方 `sass.Compiler`，保留现有双栏界面和编译结果
+- 通过官方 `sass.info` 元数据公开并验证内置编译器，不再只依赖硬编码版本标签
+- 桥接完整官方弃用元数据表，包括 ID、状态、版本和可为空的描述
+- 对不嵌入源文件的外部 Source Map，以及带内嵌 Source Map 的压缩 CSS，新增逐字节
+  官方 CLI 对比
+- 记录剩余的 `--update` 边界：原生应用支持已授权文件变化检测和自动重新编译，
+  但不复刻 CLI 进程的目标/依赖时间戳图
 
 ## 0.8.0 - 2026-07-22
 
-- Preserved real HarmonyOS document URIs through entry compilation, relative
-  imports, package imports, loaded URLs, structured errors and Source Maps.
-- Added official `quiet` logger behavior and CLI-compatible Error CSS without
-  changing the existing two-pane UI.
-- Added official batch `stopOnError` behavior while retaining the existing
-  compile-all and export workflows.
-- Added relative and absolute Source Map source URL modes, embedded Source Map
-  data URIs and cross-directory `sourceMappingURL` generation.
-- Matched official Dart Sass CLI Error CSS and external/embedded Source Map
-  exports byte-for-byte in the runtime compatibility suite.
+- 在入口编译、相对导入、包导入、已加载 URL、结构化错误和 Source Map 中保留真实
+  HarmonyOS 文档 URI
+- 新增官方 `quiet` 日志行为和 CLI 兼容 Error CSS，不改变现有双栏界面
+- 新增官方批量 `stopOnError` 行为，同时保留现有全部编译和导出工作流
+- 新增相对及绝对 Source Map 源 URL、内嵌 Source Map 数据 URI 和跨目录
+  `sourceMappingURL`
+- 在运行时兼容测试中逐字节匹配官方 Dart Sass CLI Error CSS 及外部/内嵌
+  Source Map 导出
 
 ## 0.7.0 - 2026-07-22
 
-- Matched the official Dart Sass CLI file-export behavior when Source Maps are
-  enabled.
-- Added paired CSS and Source Map export through the existing CSS export
-  action without changing the two-pane UI.
-- Added the final CSS file to the Source Map `file` field and appended the
-  official `sourceMappingURL` comment with expanded/compressed whitespace and
-  URI encoding behavior.
-- Kept standalone Source Map export while associating the map with its
-  corresponding CSS file name.
-- Matched the official partial-first ambiguity order and error message for
-  conflicting partial and non-partial stylesheets.
-- Preserved percent-encoded `#` and `?` characters in document-provider file
-  names.
-- Added official CLI comparisons for expanded, compressed and space-containing
-  output file names.
+- Source Map 启用时匹配官方 Dart Sass CLI 文件导出行为
+- 通过现有 CSS 导出操作成对导出 CSS 和 Source Map，不改变双栏界面
+- 在 Source Map `file` 字段中写入最终 CSS 文件，并按官方展开/压缩空白和 URI
+  编码行为追加 `sourceMappingURL`
+- 保留单独 Source Map 导出，同时将 Map 与对应 CSS 文件名关联
+- 匹配分部文件与非分部文件冲突时的官方分部优先歧义顺序和错误信息
+- 保留文档提供器文件名中百分号编码的 `#` 和 `?`
+- 新增展开、压缩和包含空格输出文件名的官方 CLI 对比
 
 ## 0.6.0 - 2026-07-22
 
-- Added a virtual-project `NodePackageImporter` based on the official Dart Sass
-  `1.101.6` implementation.
-- Added `pkg:` URL resolution, nearest `node_modules` lookup, scoped packages,
-  package `exports`, wildcard exports and manifest-order Sass conditions.
-- Added package `sass`/`style`, partial, index, direct subpath and import-only
-  fallbacks.
-- Added package-internal relative imports, nested package dependencies and
-  official `quietDeps` classification for package stylesheets.
-- Added project loading for `package.json` manifests without exposing manifests
-  as editable Sass entries or changing the two-pane editor layout.
-- Added official comparisons for package success paths and package error
-  boundaries.
+- 根据官方 Dart Sass `1.101.6` 实现加入虚拟项目 `NodePackageImporter`
+- 新增 `pkg:` URL 解析、最近 `node_modules` 查找、作用域包、package exports、
+  通配符导出和清单顺序 Sass 条件
+- 新增包 `sass`/`style`、分部、索引、直接子路径和仅供导入回退
+- 新增包内相对导入、嵌套包依赖和包样式表的官方 `quietDeps` 分类
+- 支持加载 `package.json` 清单，但不会把清单显示为可编辑 Sass 入口，也不会改变
+  双栏编辑器布局
+- 新增包成功路径和包错误边界的官方对比
 
 ## 0.5.1 - 2026-07-22
 
-- Added official Dart Sass compiler-version values for `fatalDeprecations`.
-- Corrected `sourceMapIncludeSources` to use the official default while
-  retaining embedded sources for the HarmonyOS editor and exports.
-- Separated entry-relative and virtual load-path importers so `quietDeps`
-  classifies dependency deprecations like official Dart Sass.
-- Added structured `sassStack` data to compiler errors.
-- Added official package comparisons for Source Map defaults, fatal
-  deprecation versions and dependency warning behavior.
+- 为 `fatalDeprecations` 新增官方 Dart Sass 编译器版本值
+- 修正 `sourceMapIncludeSources` 以使用官方默认值，同时在 HarmonyOS 编辑器和导出中
+  继续支持嵌入源文件
+- 分离入口相对 importer 和虚拟加载路径 importer，使 `quietDeps` 按官方 Dart Sass
+  行为分类依赖弃用信息
+- 为编译器错误加入结构化 `sassStack`
+- 新增 Source Map 默认值、致命弃用版本和依赖警告行为的官方包对比
 
 ## 0.5.0 - 2026-07-22
 
-- Corrected virtual importer precedence to match official Dart Sass for direct
-  files, directory indexes, Sass syntax files, CSS fallbacks, partials,
-  explicit extensions and import-only stylesheets.
-- Added official package comparisons for importer edge cases and ambiguity
-  handling.
-- Added recursive mixed file/folder project loading with URI deduplication and
-  a global 500-file limit.
-- Removed the untouched built-in example automatically when a real project is
-  loaded while preserving edited untitled content.
-- Added session restoration for authorized project files, the active file,
-  per-file syntax overrides, output format, load paths, Source Maps and
-  automatic compilation.
-- Added batched CSS and Source Map export with collision-resistant output names.
-- Added queued automatic compilation, full warning/debug presentation and
-  deleted-file detection.
-- Documented Node.js callback, package importer, Embedded Protocol, CLI,
-  target-device and signing boundaries.
+- 修正虚拟 importer 优先级，使直接文件、目录索引、Sass 语法文件、CSS 回退、
+  分部、显式扩展名和仅供导入样式表与官方 Dart Sass 一致
+- 新增 importer 边界和歧义处理的官方包对比
+- 新增递归文件/文件夹混合项目加载、URI 去重和全局 500 文件限制
+- 载入真实项目时自动移除未修改的内置示例，同时保留已编辑的未命名内容
+- 新增已授权项目文件、当前文件、逐文件语法覆盖、输出格式、加载路径、Source Map
+  和自动编译的会话恢复
+- 新增批量 CSS 和 Source Map 导出，并生成避免冲突的输出文件名
+- 新增排队自动编译、完整警告/调试展示和文件删除检测
+- 记录 Node.js 回调、包 importer、Embedded Protocol、CLI、目标设备和签名边界
 
 ## 0.4.0 - 2026-07-22
 
-- Added official Dart Sass deprecation controls to the ArkWeb runtime bridge.
-- Added structured deprecation IDs, Sass warning stacks and `@debug` messages.
-- Added batch compilation for multiple entry stylesheets in one virtual
-  project.
-- Added external document change detection while automatic compilation is
-  enabled, including unsaved-edit conflict protection.
-- Changed the existing save action to persist all modified project files while
-  keeping save-as scoped to the active file.
-- Expanded runtime and ArkTS coverage for diagnostics and batch compilation.
+- 为 ArkWeb 运行时桥接加入官方 Dart Sass 弃用控制
+- 新增结构化弃用 ID、Sass 警告调用栈和 `@debug` 消息
+- 新增虚拟项目多入口样式表批量编译
+- 自动编译启用时检测外部文档变化，并保护尚未保存的修改冲突
+- 现有保存操作改为保存项目中全部已修改文件，另存为仍只作用于当前文件
+- 扩展诊断和批量编译的运行时及 ArkTS 测试
 
 ## 0.3.0 - 2026-07-22
 
-- Added an in-memory multi-file project importer backed by official Dart Sass.
-- Added relative `@use`, `@forward`, `@import`, partial, `_index` and
-  import-only file resolution.
-- Added SCSS, indented Sass and CSS syntax modes with expanded or compressed
-  output.
-- Added Source Maps, loaded URL reporting, compiler warnings and complete
-  structured error spans.
-- Added HarmonyOS file open, project file selection, save, save-as, CSS copy,
-  CSS export and Source Map export.
-- Added active entry switching, virtual load paths, automatic compilation and
-  PC keyboard shortcuts while preserving the two-pane editor layout.
-- Added project path/model tests and end-to-end runtime project fixtures.
+- 新增由官方 Dart Sass 驱动的内存多文件项目 importer
+- 新增相对 `@use`、`@forward`、`@import`、分部、`_index` 和仅供导入文件解析
+- 新增 SCSS、缩进式 Sass 和 CSS 输入模式，以及展开或压缩输出
+- 新增 Source Map、已加载 URL 报告、编译器警告和完整结构化错误范围
+- 新增 HarmonyOS 文件打开、项目文件选择、保存、另存为、CSS 复制、CSS 导出和
+  Source Map 导出
+- 新增当前入口切换、虚拟加载路径、自动编译和 PC 快捷键，同时保留双栏布局
+- 新增项目路径/模型测试和端到端运行时项目夹具
 
 ## 0.2.0 - 2026-07-21
 
-- Replaced the handwritten `ScssLite` subset with official Dart Sass 1.101.6.
-- Added a local, invisible ArkWeb runtime without changing the visible editor UI.
-- Added support for mixins, functions, control flow, arithmetic, at-rules and
-  built-in Sass modules.
-- Added structured Dart Sass errors with line and column information.
-- Added upstream compatibility fixtures and bundled third-party notices.
+- 使用官方 Dart Sass `1.101.6` 替换手写 `ScssLite` 子集
+- 新增本地不可见 ArkWeb 运行时，不改变可见编辑器界面
+- 支持混入、函数、控制流、算术运算、CSS at-rules 和内置 Sass 模块
+- 新增包含行列信息的结构化 Dart Sass 错误
+- 新增上游兼容夹具和内置第三方声明
 
 ## 0.1.0 - 2026-07-12
 
-- First open-source MVP for HarmonyOS PC.
-- Added native ArkTS SCSS Lite compiler core.
-- Supports variables, nested selectors, selector lists, and `&` parent selectors.
-- Added a two-pane SCSS-to-CSS editor UI.
-- Added unit coverage for core compilation behavior and malformed source.
+- 发布首个面向鸿蒙 PC 的开源 MVP
+- 新增原生 ArkTS SCSS Lite 编译器核心
+- 支持变量、嵌套选择器、选择器列表和 `&` 父选择器
+- 新增 SCSS 到 CSS 双栏编辑器界面
+- 新增核心编译行为和非法源码的单元测试

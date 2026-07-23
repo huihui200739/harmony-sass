@@ -2,7 +2,7 @@
   "modelVersion": "6.1.1",
   "name": "harmony-sass",
   "version": "0.14.2",
-  "description": "A Dart Sass editor and compiler adapted for HarmonyOS PC.",
+  "description": "面向鸿蒙 PC 适配的 Dart Sass 编辑与编译工具。",
   "dependencies": {},
   "devDependencies": {
     "@ohos/hypium": "1.0.25",

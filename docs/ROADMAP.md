@@ -1,85 +1,76 @@
-# Compatibility Status
+# 兼容状态
 
-## Implemented
+## 已实现
 
-- [x] Native HarmonyOS PC two-pane editor UI
-- [x] Official Dart Sass `1.101.6` browser runtime
-- [x] Official `sass.Compiler` and `sass.AsyncCompiler` reuse for the ArkWeb
-      page lifecycle
-- [x] Official `AsyncCompiler.compileStringAsync()` editor and batch workflows
-      with a compatible synchronous runtime bridge
-- [x] Explicit release of abandoned asynchronous bridge jobs on timeout and
-      page exit
-- [x] Official `sass.info`, structured compiler-version metadata and complete
-      nullable deprecation release metadata bridge
-- [x] SCSS, indented Sass and CSS input
-- [x] Complete Sass language semantics supplied by Dart Sass
-- [x] Built-in `sass:*` modules and Sass-authored `@function`
-- [x] Expanded and compressed CSS
-- [x] Source Maps with official API defaults and optional embedded sources
-- [x] Official CLI-compatible paired CSS and Source Map file export
-- [x] Relative/absolute Source Map source URLs and embedded Source Map data URIs
-- [x] Official CLI Source Map comparisons with and without embedded sources
-- [x] Real HarmonyOS document URIs in loaded URLs, diagnostics and Source Maps
-- [x] Virtual multi-file projects and load paths
-- [x] Relative `@use`, `@forward` and legacy `@import`
-- [x] Partials, directory indexes, import-only files and ambiguity errors
-- [x] Official partial-first ambiguity diagnostics
-- [x] Official-compatible direct/index and Sass/CSS resolution precedence
-- [x] Structured errors, warnings, complete per-warning deprecation metadata,
-      full source-span context, warning/error Sass stacks, JavaScript runtime
-      stack traces and `@debug`
-- [x] Fatal deprecations by ID or Dart Sass version
-- [x] Sync/async parity checks for charset output, ASCII/color diagnostics,
-      verbose warnings, strict syntax/style errors and unmodified deprecation
-      option validation
-- [x] Official `quietDeps` behavior for relative and load-path stylesheets
-- [x] Virtual-project `NodePackageImporter`, `pkg:` URLs, nearest
-      `node_modules`, package export conditions, array fallbacks, wildcard
-      precedence, nested package dependencies, percent-encoded package paths
-      and official malformed URL validation
-- [x] Multiple-entry batch CSS and Source Map export
-- [x] Official `quiet`, Error CSS and batch `stopOnError` behavior
-- [x] Open, save, save-as, save-all, copy and keyboard workflows
-- [x] URI-safe document-provider file names containing encoded `#` or `?`
-- [x] Automatic compilation and authorized external-file reload
-- [x] Recursive folder discovery with deduplication and no application-level
-      file-count limit
-- [x] Dependency graph and affected-entry incremental compilation
-- [x] Input/output directory mapping and registered CSS/Source Map cleanup
-- [x] Rename detection, ignore rules, permission recovery and sleep/wake
-      recovery
-- [x] Batched file reads and signatures for large projects
-- [x] Project and compiler-option session restoration
-- [x] ArkTS tests, official runtime comparisons and unsigned HAP build
+- [x] 原生 HarmonyOS PC 双栏编辑器界面
+- [x] 官方 Dart Sass `1.101.6` 浏览器运行时
+- [x] 在 ArkWeb 页面生命周期内复用官方 `sass.Compiler` 和
+      `sass.AsyncCompiler`
+- [x] 通过官方 `AsyncCompiler.compileStringAsync()` 实现编辑器及批量编译，
+      并提供兼容的同步运行时桥接
+- [x] 在超时和页面退出时主动释放废弃的异步桥接任务
+- [x] 桥接官方 `sass.info`、结构化编译器版本及完整的可空弃用版本元数据
+- [x] 支持 SCSS、缩进式 Sass 和 CSS 输入
+- [x] 由 Dart Sass 提供完整 Sass 语言语义
+- [x] 支持内置 `sass:*` 模块和 Sass `@function`
+- [x] 支持展开及压缩 CSS
+- [x] 支持官方 API 默认选项的 Source Map，并可选择嵌入源文件
+- [x] 与官方 CLI 兼容的 CSS 和 Source Map 成对导出
+- [x] 相对/绝对 Source Map 源 URL 和内嵌 Source Map 数据 URI
+- [x] 对包含及不包含嵌入源文件的 Source Map 进行官方 CLI 对比
+- [x] 在已加载 URL、诊断和 Source Map 中保留真实 HarmonyOS 文档 URI
+- [x] 虚拟多文件项目和加载路径
+- [x] 相对路径 `@use`、`@forward` 和传统 `@import`
+- [x] 分部文件、目录索引、仅供导入文件和歧义错误
+- [x] 官方分部文件优先歧义诊断
+- [x] 官方兼容的直接文件/目录索引及 Sass/CSS 解析优先级
+- [x] 结构化错误、警告、逐警告完整弃用元数据、完整源码范围、
+      警告/错误 Sass 调用栈、JavaScript 运行时堆栈和 `@debug`
+- [x] 按弃用 ID 或 Dart Sass 版本设置致命弃用项
+- [x] 对字符集输出、ASCII/彩色诊断、详细警告、严格语法/格式错误和未经修改的
+      弃用选项进行同步/异步一致性检查
+- [x] 相对文件和加载路径文件的官方 `quietDeps` 行为
+- [x] 虚拟项目 `NodePackageImporter`、`pkg:` URL、最近的 `node_modules`、
+      package exports 条件、数组回退、通配符优先级、嵌套包依赖、
+      百分号编码包路径及官方非法 URL 校验
+- [x] 多入口批量 CSS 和 Source Map 导出
+- [x] 官方 `quiet`、Error CSS 和批量编译 `stopOnError`
+- [x] 打开、保存、另存为、保存全部、复制和快捷键工作流
+- [x] 正确处理包含编码 `#` 或 `?` 的文档提供器文件名
+- [x] 自动编译和已授权外部文件重新加载
+- [x] 递归发现及去重，不设置应用层文件数量限制
+- [x] 依赖图和受影响入口增量编译
+- [x] 输入/输出目录映射及登记的 CSS/Source Map 清理
+- [x] 重命名识别、忽略规则、权限恢复和休眠恢复
+- [x] 大型项目文件读取和签名分批处理
+- [x] 项目及编译器选项会话恢复
+- [x] ArkTS 测试、官方运行时对比及未签名 HAP 构建
 
-## Requires target-device validation
+## 需要目标设备验证
 
-- [ ] Confirm recursive document-provider child URIs on HarmonyOS PC hardware
-- [ ] Confirm mixed file/folder picker support on all target PC device models
-- [ ] Configure release signing and produce a signed distribution HAP
+- [ ] 在鸿蒙 PC 真机上确认递归文档提供器子 URI
+- [ ] 在不同目标 PC 设备上确认文件/文件夹混合选择支持
+- [ ] 在鸿蒙 PC 真机上完成长时间监视、目录权限、休眠恢复和大型项目回归
 
-## Not faithfully portable to the current runtime
+应用商店发布、发布签名和上架不属于当前项目目标。
 
-- [ ] Host JavaScript callbacks through `Options.functions`
-- [ ] External JavaScript `Importer` and `FileImporter` callback objects
-- [ ] External JavaScript `Logger` callback objects
-- [ ] Filesystem-backed `NodePackageImporter` outside the loaded virtual project
+## 当前运行环境无法完整移植
+
+- [ ] 通过 `Options.functions` 传入宿主 JavaScript 回调
+- [ ] 外部 JavaScript `Importer` 和 `FileImporter` 回调对象
+- [ ] 外部 JavaScript `Logger` 回调对象
+- [ ] 访问虚拟项目之外文件的文件系统 `NodePackageImporter`
 - [ ] Dart Sass Embedded Protocol
-- [ ] Complete Dart Sass CLI stdin/stdout, every CLI flag, CLI watch mode and
-      `--update` target/dependency timestamp graph
-- [ ] Filesystem file-entry npm APIs (`compile()` and `compileAsync()`),
-      JavaScript callback/value object APIs and the legacy JavaScript API
-      surface
+- [ ] 完整 Dart Sass CLI stdin/stdout、全部 CLI 参数、CLI 监视模式和
+      `--update` 目标/依赖时间戳图
+- [ ] 文件系统入口 npm API（`compile()` 和 `compileAsync()`）、
+      JavaScript 回调/值对象 API 及传统 JavaScript API
 
-These items depend on a Node.js filesystem/process environment or callback
-objects that cannot cross the current ArkTS-to-ArkWeb JSON bridge. The portable
-package-resolution behavior is implemented for files loaded into the virtual
-project. Authorized-file polling and automatic recompilation are implemented,
-but they are not presented as CLI `--update`, which additionally depends on
-output and transitive dependency timestamps. The native app now has a separate
-dependency-aware watcher and output synchronizer; the remaining items are
-documented as platform boundaries rather than replaced with incompatible
-approximations.
-The official browser build also rejects legacy `render()` and `renderSync()`
-when only the `data` string option is used.
+这些能力依赖 Node.js 文件系统/进程环境或回调对象，无法通过当前 ArkTS 到 ArkWeb
+的 JSON 桥接传递。已加载到虚拟项目中的文件可以使用可移植的包解析行为。
+
+应用已经实现已授权文件轮询、自动重新编译、独立的依赖感知监视和输出同步，但不会
+将其描述为 CLI `--update`，因为 CLI 还依赖输出文件和传递依赖的时间戳。
+
+官方浏览器构建在只提供 `data` 字符串时同样会拒绝传统 `render()` 和
+`renderSync()`。
