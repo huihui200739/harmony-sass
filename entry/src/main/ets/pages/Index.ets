@@ -50,6 +50,11 @@ const SAMPLE_FILE: SassEditorFile = {
 };
 const MAX_PROJECT_FILES: number = 500;
 
+interface ProjectSelectionExpansion {
+  uris: string[];
+  directoryUris: string[];
+}
+
 @Entry
 @Component
 struct Index {
@@ -63,7 +68,23 @@ struct Index {
   @State private outputStyle: string = 'expanded';
   @State private loadPathsText: string = '';
   @State private sourceMapEnabled: boolean = false;
+  @State private sourceMapIncludeSources: boolean = true;
+  @State private sourceMapUrls: string = 'relative';
+  @State private embedSourceMap: boolean = false;
   @State private autoCompile: boolean = false;
+  @State private autoBatchCompile: boolean = true;
+  @State private charsetEnabled: boolean = true;
+  @State private alertAsciiEnabled: boolean = false;
+  @State private alertColorEnabled: boolean = false;
+  @State private quietEnabled: boolean = false;
+  @State private quietDepsEnabled: boolean = false;
+  @State private verboseEnabled: boolean = false;
+  @State private errorCssEnabled: boolean = false;
+  @State private stopOnError: boolean = false;
+  @State private fatalDeprecationsText: string = '';
+  @State private futureDeprecationsText: string = '';
+  @State private silenceDeprecationsText: string = '';
+  @State private advancedOptionsVisible: boolean = false;
   @State private runtimeVersion: string = '1.101.3';
   @State private statusMessage: string = '准备就绪：输入 SCSS 后点击“编译”。';
   @State private isSuccessful: boolean = true;
@@ -72,12 +93,14 @@ struct Index {
   private runtimeReady: boolean = false;
   private isCompiling: boolean = false;
   private compilePending: boolean = false;
+  private compilePendingBatch: boolean = false;
   private compileTimer: number = -1;
   private fileWatchTimer: number = -1;
   private preferencesTimer: number = -1;
   private isCheckingFiles: boolean = false;
   private fileSignatures: Map<string, string> = new Map<string, string>();
   private dirtyPaths: Set<string> = new Set<string>();
+  private projectDirectoryUris: string[] = [];
   private activeAsyncJobIds: Set<string> = new Set<string>();
   private preferenceStore: preferences.Preferences | null = null;
 
@@ -119,6 +142,36 @@ struct Index {
         await this.preferenceStore.get('sourceMap', false);
       const savedAutoCompile: preferences.ValueType =
         await this.preferenceStore.get('autoCompile', false);
+      const savedAutoBatchCompile: preferences.ValueType =
+        await this.preferenceStore.get('autoBatchCompile', true);
+      const savedSourceMapIncludeSources: preferences.ValueType =
+        await this.preferenceStore.get('sourceMapIncludeSources', true);
+      const savedSourceMapUrls: preferences.ValueType =
+        await this.preferenceStore.get('sourceMapUrls', 'relative');
+      const savedEmbedSourceMap: preferences.ValueType =
+        await this.preferenceStore.get('embedSourceMap', false);
+      const savedCharset: preferences.ValueType =
+        await this.preferenceStore.get('charset', true);
+      const savedAlertAscii: preferences.ValueType =
+        await this.preferenceStore.get('alertAscii', false);
+      const savedAlertColor: preferences.ValueType =
+        await this.preferenceStore.get('alertColor', false);
+      const savedQuiet: preferences.ValueType =
+        await this.preferenceStore.get('quiet', false);
+      const savedQuietDeps: preferences.ValueType =
+        await this.preferenceStore.get('quietDeps', false);
+      const savedVerbose: preferences.ValueType =
+        await this.preferenceStore.get('verbose', false);
+      const savedErrorCss: preferences.ValueType =
+        await this.preferenceStore.get('errorCss', false);
+      const savedStopOnError: preferences.ValueType =
+        await this.preferenceStore.get('stopOnError', false);
+      const savedFatalDeprecations: preferences.ValueType =
+        await this.preferenceStore.get('fatalDeprecations', '');
+      const savedFutureDeprecations: preferences.ValueType =
+        await this.preferenceStore.get('futureDeprecations', '');
+      const savedSilenceDeprecations: preferences.ValueType =
+        await this.preferenceStore.get('silenceDeprecations', '');
       const emptySyntaxUris: string[] = [];
       const emptySyntaxValues: string[] = [];
       const savedSyntaxUrisValue: preferences.ValueType =
@@ -140,10 +193,57 @@ struct Index {
       if (typeof savedAutoCompile === 'boolean') {
         this.autoCompile = savedAutoCompile;
       }
+      if (typeof savedAutoBatchCompile === 'boolean') {
+        this.autoBatchCompile = savedAutoBatchCompile;
+      }
+      if (typeof savedSourceMapIncludeSources === 'boolean') {
+        this.sourceMapIncludeSources = savedSourceMapIncludeSources;
+      }
+      if (savedSourceMapUrls === 'relative' || savedSourceMapUrls === 'absolute') {
+        this.sourceMapUrls = savedSourceMapUrls;
+      }
+      if (typeof savedEmbedSourceMap === 'boolean') {
+        this.embedSourceMap = savedEmbedSourceMap;
+      }
+      if (typeof savedCharset === 'boolean') {
+        this.charsetEnabled = savedCharset;
+      }
+      if (typeof savedAlertAscii === 'boolean') {
+        this.alertAsciiEnabled = savedAlertAscii;
+      }
+      if (typeof savedAlertColor === 'boolean') {
+        this.alertColorEnabled = savedAlertColor;
+      }
+      if (typeof savedQuiet === 'boolean') {
+        this.quietEnabled = savedQuiet;
+      }
+      if (typeof savedQuietDeps === 'boolean') {
+        this.quietDepsEnabled = savedQuietDeps;
+      }
+      if (typeof savedVerbose === 'boolean') {
+        this.verboseEnabled = savedVerbose;
+      }
+      if (typeof savedErrorCss === 'boolean') {
+        this.errorCssEnabled = savedErrorCss;
+      }
+      if (typeof savedStopOnError === 'boolean') {
+        this.stopOnError = savedStopOnError;
+      }
+      if (typeof savedFatalDeprecations === 'string') {
+        this.fatalDeprecationsText = savedFatalDeprecations;
+      }
+      if (typeof savedFutureDeprecations === 'string') {
+        this.futureDeprecationsText = savedFutureDeprecations;
+      }
+      if (typeof savedSilenceDeprecations === 'string') {
+        this.silenceDeprecationsText = savedSilenceDeprecations;
+      }
 
       const emptyUris: string[] = [];
       const savedUrisValue: preferences.ValueType =
         await this.preferenceStore.get('projectUris', emptyUris);
+      const savedDirectoryUrisValue: preferences.ValueType =
+        await this.preferenceStore.get('projectDirectoryUris', emptyUris);
       const savedActiveUriValue: preferences.ValueType =
         await this.preferenceStore.get('activeUri', '');
       const savedUris: string[] = [];
@@ -157,6 +257,16 @@ struct Index {
             value.length > 0 &&
             !savedUris.includes(value)) {
             savedUris.push(value);
+          }
+        }
+      }
+      if (Array.isArray(savedDirectoryUrisValue)) {
+        const directoryValues: string[] = savedDirectoryUrisValue as string[];
+        for (const value of directoryValues) {
+          if (typeof value === 'string' &&
+            value.length > 0 &&
+            !this.projectDirectoryUris.includes(value)) {
+            this.projectDirectoryUris.push(value);
           }
         }
       }
@@ -260,8 +370,39 @@ struct Index {
       await this.preferenceStore.put('outputStyle', this.outputStyle);
       await this.preferenceStore.put('loadPaths', this.loadPathsText);
       await this.preferenceStore.put('sourceMap', this.sourceMapEnabled);
+      await this.preferenceStore.put(
+        'sourceMapIncludeSources',
+        this.sourceMapIncludeSources
+      );
+      await this.preferenceStore.put('sourceMapUrls', this.sourceMapUrls);
+      await this.preferenceStore.put('embedSourceMap', this.embedSourceMap);
       await this.preferenceStore.put('autoCompile', this.autoCompile);
+      await this.preferenceStore.put('autoBatchCompile', this.autoBatchCompile);
+      await this.preferenceStore.put('charset', this.charsetEnabled);
+      await this.preferenceStore.put('alertAscii', this.alertAsciiEnabled);
+      await this.preferenceStore.put('alertColor', this.alertColorEnabled);
+      await this.preferenceStore.put('quiet', this.quietEnabled);
+      await this.preferenceStore.put('quietDeps', this.quietDepsEnabled);
+      await this.preferenceStore.put('verbose', this.verboseEnabled);
+      await this.preferenceStore.put('errorCss', this.errorCssEnabled);
+      await this.preferenceStore.put('stopOnError', this.stopOnError);
+      await this.preferenceStore.put(
+        'fatalDeprecations',
+        this.fatalDeprecationsText
+      );
+      await this.preferenceStore.put(
+        'futureDeprecations',
+        this.futureDeprecationsText
+      );
+      await this.preferenceStore.put(
+        'silenceDeprecations',
+        this.silenceDeprecationsText
+      );
       await this.preferenceStore.put('projectUris', projectUris);
+      await this.preferenceStore.put(
+        'projectDirectoryUris',
+        this.projectDirectoryUris
+      );
       await this.preferenceStore.put('activeUri', this.activeFile().uri);
       await this.preferenceStore.put('syntaxUris', syntaxUris);
       await this.preferenceStore.put('syntaxValues', syntaxValues);
@@ -277,10 +418,25 @@ struct Index {
     }
     if (this.isCompiling) {
       this.compilePending = true;
+      this.compilePendingBatch = false;
       return;
     }
     this.isCompiling = true;
     this.compileWithDartSass();
+  }
+
+  private compileBatch(): void {
+    if (!this.runtimeReady) {
+      this.statusMessage = '正在初始化 Dart Sass 编译器…';
+      return;
+    }
+    if (this.isCompiling) {
+      this.compilePending = true;
+      this.compilePendingBatch = true;
+      return;
+    }
+    this.isCompiling = true;
+    this.compileBatchWithDartSass();
   }
 
   private async initializeRuntime(): Promise<void> {
@@ -381,18 +537,18 @@ struct Index {
         packageEntryPointDirectory: '',
         syntax: this.syntax,
         style: this.outputStyle,
-        alertAscii: false,
-        alertColor: false,
+        alertAscii: this.alertAsciiEnabled,
+        alertColor: this.alertColorEnabled,
         sourceMap: this.sourceMapEnabled,
-        sourceMapIncludeSources: true,
-        charset: true,
-        quiet: false,
-        quietDeps: false,
-        verbose: false,
-        errorCss: false,
-        fatalDeprecations: [],
-        futureDeprecations: [],
-        silenceDeprecations: []
+        sourceMapIncludeSources: this.sourceMapIncludeSources,
+        charset: this.charsetEnabled,
+        quiet: this.quietEnabled,
+        quietDeps: this.quietDepsEnabled,
+        verbose: this.verboseEnabled,
+        errorCss: this.errorCssEnabled,
+        fatalDeprecations: this.parseOptionList(this.fatalDeprecationsText),
+        futureDeprecations: this.parseOptionList(this.futureDeprecationsText),
+        silenceDeprecations: this.parseOptionList(this.silenceDeprecationsText)
       };
       const script: string =
         DartSassRuntime.createAsyncProjectCompileScript(request);
@@ -415,6 +571,9 @@ struct Index {
           compiled.warnings ?? [],
           compiled.debugMessages ?? []
         );
+        if (compiled.errorCss !== undefined && this.errorCssEnabled) {
+          this.displayResult += `\n\n----- Error CSS -----\n${compiled.errorCss}`;
+        }
       }
     } catch (error) {
       this.result = '';
@@ -426,10 +585,85 @@ struct Index {
     } finally {
       this.isCompiling = false;
       if (this.compilePending) {
+        const pendingBatch: boolean = this.compilePendingBatch;
         this.compilePending = false;
-        this.compile();
+        this.compilePendingBatch = false;
+        if (pendingBatch) {
+          this.compileBatch();
+        } else {
+          this.compile();
+        }
       }
     }
+  }
+
+  private async compileBatchWithDartSass(): Promise<void> {
+    try {
+      const compiled: SassBatchCompileResponse =
+        await this.compileProjectEntries(this.sourceMapEnabled);
+      this.showBatchCompileOutput(compiled);
+    } catch (error) {
+      this.result = '';
+      this.displayResult = (error as Error).message;
+      this.sourceMapText = '';
+      this.diagnosticCount = 0;
+      this.isSuccessful = false;
+      this.statusMessage = '批量编译失败 · ' + (error as Error).message;
+    } finally {
+      this.isCompiling = false;
+      if (this.compilePending) {
+        const pendingBatch: boolean = this.compilePendingBatch;
+        this.compilePending = false;
+        this.compilePendingBatch = false;
+        if (pendingBatch) {
+          this.compileBatch();
+        } else {
+          this.compile();
+        }
+      }
+    }
+  }
+
+  private showBatchCompileOutput(compiled: SassBatchCompileResponse): void {
+    const chunks: string[] = [];
+    let warnings: SassWarning[] = [];
+    let debugMessages: SassDebugMessage[] = [];
+    let failedCount: number = 0;
+    let successfulCount: number = 0;
+    for (const entry of compiled.results) {
+      warnings = warnings.concat(entry.warnings ?? []);
+      debugMessages = debugMessages.concat(entry.debugMessages ?? []);
+      if (entry.ok) {
+        successfulCount++;
+        chunks.push(`===== ${entry.entryPath} =====\n${entry.css ?? ''}`);
+      } else {
+        failedCount++;
+        const errorText: string = entry.error?.formatted ??
+          entry.error?.message ??
+          'Dart Sass 未返回错误详情。';
+        const errorCss: string = entry.errorCss !== undefined && this.errorCssEnabled
+          ? `\n\n----- Error CSS -----\n${entry.errorCss}`
+          : '';
+        chunks.push(`===== ${entry.entryPath} =====\n${errorText}${errorCss}`);
+      }
+    }
+    const diagnostics: string = this.formatDiagnostics(warnings, debugMessages);
+    this.result = chunks.join('\n\n');
+    this.sourceMapText = '';
+    this.diagnosticCount = warnings.length + debugMessages.length;
+    this.displayResult = diagnostics.length > 0
+      ? `${this.result}\n\n----- Sass 诊断 -----\n${diagnostics}`
+      : this.result;
+    this.isSuccessful = failedCount === 0 && compiled.results.length > 0;
+    this.statusMessage = failedCount === 0
+      ? `批量编译成功 · ${successfulCount} 个入口`
+      : `批量编译完成 · ${successfulCount} 个成功 · ${failedCount} 个失败`;
+  }
+
+  private parseOptionList(value: string): string[] {
+    return value.split(/[,;\n]/)
+      .map((item: string): string => item.trim())
+      .filter((item: string): boolean => item.length > 0);
   }
 
   private successMessage(compiled: SassCompileResponse): string {
@@ -536,7 +770,12 @@ struct Index {
     }
     this.compileTimer = setTimeout((): void => {
       this.compileTimer = -1;
-      this.compile();
+      if (this.autoBatchCompile &&
+        SassProject.entryPaths(this.files, this.activePath).length > 1) {
+        this.compileBatch();
+      } else {
+        this.compile();
+      }
     }, 350);
   }
 
@@ -597,6 +836,132 @@ struct Index {
     }
   }
 
+  private async readEditorFiles(uris: string[]): Promise<SassEditorFile[]> {
+    const paths: string[] = SassProject.deriveVirtualPaths(uris);
+    const incoming: SassEditorFile[] = [];
+    for (let index: number = 0; index < uris.length; index++) {
+      const path: string = paths[index];
+      incoming.push({
+        path,
+        uri: uris[index],
+        contents: await fileIo.readText(uris[index]),
+        syntax: SassProject.syntaxForPath(path)
+      });
+    }
+    return incoming;
+  }
+
+  private mergeWatchedFiles(incoming: SassEditorFile[]): void {
+    if (incoming.length === 0) {
+      return;
+    }
+    this.syncActiveSource();
+    const activeUri: string = this.activeFile().uri;
+    const dirtyUris: Set<string> = new Set<string>();
+    const dirtyVirtualPaths: Set<string> = new Set<string>();
+    for (const file of this.files) {
+      if (!this.dirtyPaths.has(file.path)) {
+        continue;
+      }
+      if (file.uri.length > 0) {
+        dirtyUris.add(file.uri);
+      } else {
+        dirtyVirtualPaths.add(file.path);
+      }
+    }
+    this.files = SassProject.rebaseUriFiles(SassProject.mergeFiles(this.files, incoming));
+    const rebasedDirtyPaths: Set<string> = new Set<string>();
+    for (const file of this.files) {
+      if ((file.uri.length > 0 && dirtyUris.has(file.uri)) ||
+        (file.uri.length === 0 && dirtyVirtualPaths.has(file.path))) {
+        rebasedDirtyPaths.add(file.path);
+      }
+    }
+    this.dirtyPaths = rebasedDirtyPaths;
+    const editableFiles: SassEditorFile[] =
+      SassProject.editableStylesheetFiles(this.files);
+    for (const file of editableFiles) {
+      if ((activeUri.length > 0 && file.uri === activeUri) ||
+        file.path === this.activePath) {
+        this.activePath = file.path;
+        this.source = file.contents;
+        this.syntax = file.syntax;
+        break;
+      }
+    }
+    this.scheduleSessionSave();
+  }
+
+  private async refreshWatchedDirectories(): Promise<string[]> {
+    if (this.projectDirectoryUris.length === 0) {
+      return [];
+    }
+    try {
+      const expansion: ProjectSelectionExpansion =
+        await this.expandProjectUris(this.projectDirectoryUris);
+      const knownUris: Set<string> = new Set<string>(
+        this.files
+          .map((file: SassEditorFile): string => file.uri)
+          .filter((value: string): boolean => value.length > 0)
+      );
+      const addedUris: string[] = expansion.uris.filter(
+        (value: string): boolean => !knownUris.has(value)
+      );
+      if (addedUris.length === 0) {
+        return [];
+      }
+      const incoming: SassEditorFile[] = await this.readEditorFiles(addedUris);
+      this.mergeWatchedFiles(incoming);
+      await this.rememberFileSignatures();
+      return incoming.map((file: SassEditorFile): string => file.path);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  private removeUnavailableFiles(paths: string[]): void {
+    if (paths.length === 0) {
+      return;
+    }
+    const removed: Set<string> = new Set<string>(paths);
+    const activeUri: string = this.activeFile().uri;
+    for (const file of this.files) {
+      if (removed.has(file.path) && file.uri.length > 0) {
+        this.fileSignatures.delete(file.uri);
+      }
+    }
+    this.files = this.files.filter(
+      (file: SassEditorFile): boolean => !removed.has(file.path)
+    );
+    for (const path of paths) {
+      this.dirtyPaths.delete(path);
+    }
+    this.files = SassProject.rebaseUriFiles(this.files);
+    const editableFiles: SassEditorFile[] =
+      SassProject.editableStylesheetFiles(this.files);
+    if (editableFiles.length === 0) {
+      this.files = [SAMPLE_FILE];
+      this.activePath = SAMPLE_FILE.path;
+      this.source = SAMPLE_FILE.contents;
+      this.syntax = SAMPLE_FILE.syntax;
+      this.dirtyPaths.clear();
+    } else {
+      let activeFile: SassEditorFile | undefined;
+      for (const file of editableFiles) {
+        if ((activeUri.length > 0 && file.uri === activeUri) ||
+          file.path === this.activePath) {
+          activeFile = file;
+          break;
+        }
+      }
+      const fallback: SassEditorFile = activeFile ?? editableFiles[0];
+      this.activePath = fallback.path;
+      this.source = fallback.contents;
+      this.syntax = fallback.syntax;
+    }
+    this.scheduleSessionSave();
+  }
+
   private async checkExternalFiles(): Promise<void> {
     if (!this.autoCompile || this.isCheckingFiles) {
       return;
@@ -605,6 +970,7 @@ struct Index {
     const changedPaths: string[] = [];
     const conflictPaths: string[] = [];
     const unavailablePaths: string[] = [];
+    const addedPaths: string[] = await this.refreshWatchedDirectories();
     try {
       const observedFiles: SassEditorFile[] = this.files.slice();
       for (const file of observedFiles) {
@@ -616,7 +982,11 @@ struct Index {
           const previous: string | undefined = this.fileSignatures.get(file.uri);
           if (signature.length === 0) {
             if (previous !== undefined && previous.length > 0) {
-              unavailablePaths.push(file.path);
+              if (this.dirtyPaths.has(file.path)) {
+                conflictPaths.push(file.path);
+              } else {
+                unavailablePaths.push(file.path);
+              }
             }
             this.fileSignatures.set(file.uri, '');
             continue;
@@ -642,20 +1012,23 @@ struct Index {
       this.isCheckingFiles = false;
     }
 
-    if (unavailablePaths.length > 0) {
-      this.isSuccessful = false;
-      this.statusMessage =
-        `项目文件已删除或无法访问 · ${unavailablePaths[0]} · 请重新载入项目`;
-      return;
+    const removablePaths: string[] = unavailablePaths.filter(
+      (path: string): boolean => !conflictPaths.includes(path)
+    );
+    if (removablePaths.length > 0) {
+      this.removeUnavailableFiles(removablePaths);
     }
     if (conflictPaths.length > 0) {
       this.isSuccessful = false;
       this.statusMessage = `检测到外部修改冲突 · ${conflictPaths[0]} 尚未保存`;
       return;
     }
-    if (changedPaths.length > 0) {
+    if (changedPaths.length > 0 || addedPaths.length > 0 ||
+      removablePaths.length > 0) {
       this.isSuccessful = true;
-      this.statusMessage = `已重新载入外部修改 · ${changedPaths.length} 个文件`;
+      const changedCount: number =
+        changedPaths.length + addedPaths.length + removablePaths.length;
+      this.statusMessage = `已同步项目变化 · ${changedCount} 个文件`;
       this.scheduleCompile();
     }
   }
@@ -735,6 +1108,7 @@ struct Index {
       this.diagnosticCount = 0;
       this.dirtyPaths.clear();
       this.fileSignatures.clear();
+      this.projectDirectoryUris = [];
       await this.rememberFileSignatures();
       this.statusMessage = `已打开 · ${file.path}`;
       this.isSuccessful = true;
@@ -748,9 +1122,16 @@ struct Index {
   private async addProjectFiles(): Promise<void> {
     try {
       const selectedUris: string[] = await this.selectDocuments(500, true);
-      const uris: string[] = await this.expandProjectUris(selectedUris);
+      const expansion: ProjectSelectionExpansion =
+        await this.expandProjectUris(selectedUris);
+      const uris: string[] = expansion.uris;
       if (uris.length === 0) {
         return;
+      }
+      for (const directoryUri of expansion.directoryUris) {
+        if (!this.projectDirectoryUris.includes(directoryUri)) {
+          this.projectDirectoryUris.push(directoryUri);
+        }
       }
       this.syncActiveSource();
       const currentFiles: SassEditorFile[] = SassProject.withoutUntouchedPlaceholder(
@@ -851,9 +1232,12 @@ struct Index {
     return await documentPicker.select(options);
   }
 
-  private async expandProjectUris(selectedUris: string[]): Promise<string[]> {
+  private async expandProjectUris(
+    selectedUris: string[]
+  ): Promise<ProjectSelectionExpansion> {
     const expanded: string[] = [];
     const seen: Set<string> = new Set<string>();
+    const directoryUris: string[] = [];
     for (const uri of selectedUris) {
       const stat: fileIo.Stat = await fileIo.stat(uri);
       if (!stat.isDirectory()) {
@@ -866,6 +1250,9 @@ struct Index {
           throw new Error(`一次最多载入 ${MAX_PROJECT_FILES} 个项目文件。`);
         }
         continue;
+      }
+      if (!directoryUris.includes(uri)) {
+        directoryUris.push(uri);
       }
       let relativePaths: string[] = [];
       const directoryPath: string = this.documentDirectoryPath(uri);
@@ -897,7 +1284,7 @@ struct Index {
         }
       }
     }
-    return expanded;
+    return { uris: expanded, directoryUris };
   }
 
   private documentDirectoryPath(directoryUri: string): string {
@@ -990,11 +1377,25 @@ struct Index {
     try {
       const compiled: SassBatchCompileResponse =
         await this.compileProjectEntries(this.sourceMapEnabled);
-      if (!compiled.ok) {
+      const successfulResults: SassBatchCompileResult[] =
+        compiled.results.filter(
+          (entry: SassBatchCompileResult): boolean => entry.ok
+        );
+      const exportResults: SassBatchCompileResult[] = this.sourceMapEnabled
+        ? successfulResults
+        : compiled.results.filter(
+          (entry: SassBatchCompileResult): boolean =>
+            entry.ok ||
+            (this.errorCssEnabled &&
+              entry.errorCss !== undefined &&
+              entry.errorCss.length > 0)
+        );
+      if (exportResults.length === 0) {
         this.showBatchCompileErrors(compiled);
         return;
       }
-      const entryPaths: string[] = compiled.results.map(
+      const failedCount: number = compiled.results.length - successfulResults.length;
+      const entryPaths: string[] = exportResults.map(
         (entry: SassBatchCompileResult): string => entry.entryPath
       );
       const cssFileNames: string[] = SassProject.outputFileNames(entryPaths, '.css');
@@ -1003,16 +1404,57 @@ struct Index {
         if (uris.length === 0) {
           return;
         }
-        if (uris.length !== compiled.results.length) {
+        if (uris.length !== exportResults.length) {
           throw new Error('系统返回的保存位置数量与编译入口数量不一致。');
         }
-        for (let index: number = 0; index < compiled.results.length; index++) {
-          await this.writeText(uris[index], compiled.results[index].css ?? '');
+        for (let index: number = 0; index < exportResults.length; index++) {
+          const css: string = exportResults[index].ok
+            ? exportResults[index].css ?? ''
+            : exportResults[index].errorCss ?? '';
+          await this.writeText(uris[index], css);
         }
-        this.statusMessage = compiled.results.length > 1
-          ? `CSS 已批量导出 · ${compiled.results.length} 个入口`
-          : `CSS 已导出 · ${cssFileNames[0]}`;
-        this.isSuccessful = true;
+        this.statusMessage = failedCount > 0
+          ? `CSS 已导出 · ${exportResults.length} 个文件 · ${failedCount} 个入口失败`
+          : exportResults.length > 1
+            ? `CSS 已批量导出 · ${exportResults.length} 个入口`
+            : `CSS 已导出 · ${cssFileNames[0]}`;
+        this.isSuccessful = failedCount === 0;
+        return;
+      }
+
+      if (this.embedSourceMap) {
+        const uris: string[] = await this.chooseSaveUris(cssFileNames, 'CSS|.css');
+        if (uris.length === 0) {
+          return;
+        }
+        if (uris.length !== successfulResults.length) {
+          throw new Error('系统返回的保存位置数量与编译入口数量不一致。');
+        }
+        const entries: SassExportFinalizeEntry[] = [];
+        for (let index: number = 0; index < successfulResults.length; index++) {
+          entries.push({
+            css: successfulResults[index].css ?? '',
+            sourceMap: successfulResults[index].sourceMap ?? '',
+            cssFileName: SassProject.fileNameFromUri(uris[index]),
+            sourceMapFileName: `${SassProject.fileNameFromUri(uris[index])}.map`,
+            cssUri: uris[index],
+            sourceMapUri: uris[index]
+          });
+        }
+        const finalized: SassExportFinalizeResponse =
+          await this.finalizeExports(entries, true);
+        if (finalized.results.length !== successfulResults.length) {
+          throw new Error('Dart Sass 返回的导出文件数量与编译入口数量不一致。');
+        }
+        for (let index: number = 0; index < finalized.results.length; index++) {
+          await this.writeText(uris[index], finalized.results[index].css);
+        }
+        this.statusMessage = failedCount > 0
+          ? `嵌入式 Source Map CSS 已导出 · ${successfulResults.length} 个成功 · ${failedCount} 个失败`
+          : successfulResults.length > 1
+            ? `嵌入式 Source Map CSS 已批量导出 · ${successfulResults.length} 个入口`
+            : `嵌入式 Source Map CSS 已导出 · ${cssFileNames[0]}`;
+        this.isSuccessful = failedCount === 0;
         return;
       }
 
@@ -1027,14 +1469,14 @@ struct Index {
       if (uris.length === 0) {
         return;
       }
-      if (uris.length !== compiled.results.length * 2) {
+      if (uris.length !== successfulResults.length * 2) {
         throw new Error('系统返回的保存位置数量与编译入口数量不一致。');
       }
       const entries: SassExportFinalizeEntry[] = [];
-      for (let index: number = 0; index < compiled.results.length; index++) {
+      for (let index: number = 0; index < successfulResults.length; index++) {
         entries.push({
-          css: compiled.results[index].css ?? '',
-          sourceMap: compiled.results[index].sourceMap ?? '',
+          css: successfulResults[index].css ?? '',
+          sourceMap: successfulResults[index].sourceMap ?? '',
           cssFileName: SassProject.fileNameFromUri(uris[index * 2]),
           sourceMapFileName: SassProject.fileNameFromUri(uris[index * 2 + 1]),
           cssUri: uris[index * 2],
@@ -1042,8 +1484,8 @@ struct Index {
         });
       }
       const finalized: SassExportFinalizeResponse =
-        await this.finalizeExports(entries);
-      if (finalized.results.length !== compiled.results.length) {
+        await this.finalizeExports(entries, false);
+      if (finalized.results.length !== successfulResults.length) {
         throw new Error('Dart Sass 返回的导出文件数量与编译入口数量不一致。');
       }
       for (let index: number = 0; index < finalized.results.length; index++) {
@@ -1053,10 +1495,12 @@ struct Index {
           finalized.results[index].sourceMap
         );
       }
-      this.statusMessage = compiled.results.length > 1
-        ? `CSS 与 Source Map 已批量导出 · ${compiled.results.length} 个入口`
-        : `CSS 与 Source Map 已导出 · ${cssFileNames[0]}`;
-      this.isSuccessful = true;
+      this.statusMessage = failedCount > 0
+        ? `CSS 与 Source Map 已导出 · ${successfulResults.length} 个成功 · ${failedCount} 个失败`
+        : successfulResults.length > 1
+          ? `CSS 与 Source Map 已批量导出 · ${successfulResults.length} 个入口`
+          : `CSS 与 Source Map 已导出 · ${cssFileNames[0]}`;
+      this.isSuccessful = failedCount === 0;
     } catch (error) {
       this.showActionError('导出 CSS 失败', error);
     }
@@ -1070,11 +1514,16 @@ struct Index {
     }
     try {
       const compiled: SassBatchCompileResponse = await this.compileProjectEntries(true);
-      if (!compiled.ok) {
+      const successfulResults: SassBatchCompileResult[] =
+        compiled.results.filter(
+          (entry: SassBatchCompileResult): boolean => entry.ok
+        );
+      if (successfulResults.length === 0) {
         this.showBatchCompileErrors(compiled);
         return;
       }
-      const entryPaths: string[] = compiled.results.map(
+      const failedCount: number = compiled.results.length - successfulResults.length;
+      const entryPaths: string[] = successfulResults.map(
         (entry: SassBatchCompileResult): string => entry.entryPath
       );
       const fileNames: string[] = SassProject.outputFileNames(entryPaths, '.css.map');
@@ -1082,22 +1531,22 @@ struct Index {
       if (uris.length === 0) {
         return;
       }
-      if (uris.length !== compiled.results.length) {
+      if (uris.length !== successfulResults.length) {
         throw new Error('系统返回的保存位置数量与编译入口数量不一致。');
       }
       const entries: SassExportFinalizeEntry[] = [];
-      for (let index: number = 0; index < compiled.results.length; index++) {
+      for (let index: number = 0; index < successfulResults.length; index++) {
         const sourceMapFileName: string =
           SassProject.fileNameFromUri(uris[index]);
         const cssFileName: string = sourceMapFileName.endsWith('.map')
           ? sourceMapFileName.slice(0, sourceMapFileName.length - 4)
           : SassProject.outputFileNames(
-            [compiled.results[index].entryPath],
+            [successfulResults[index].entryPath],
             '.css'
           )[0];
         entries.push({
-          css: compiled.results[index].css ?? '',
-          sourceMap: compiled.results[index].sourceMap ?? '',
+          css: successfulResults[index].css ?? '',
+          sourceMap: successfulResults[index].sourceMap ?? '',
           cssFileName,
           sourceMapFileName,
           cssUri: '',
@@ -1105,17 +1554,19 @@ struct Index {
         });
       }
       const finalized: SassExportFinalizeResponse =
-        await this.finalizeExports(entries);
-      if (finalized.results.length !== compiled.results.length) {
+        await this.finalizeExports(entries, false);
+      if (finalized.results.length !== successfulResults.length) {
         throw new Error('Dart Sass 返回的导出文件数量与编译入口数量不一致。');
       }
       for (let index: number = 0; index < finalized.results.length; index++) {
         await this.writeText(uris[index], finalized.results[index].sourceMap);
       }
-      this.statusMessage = compiled.results.length > 1
-        ? `Source Map 已批量导出 · ${compiled.results.length} 个入口`
-        : `Source Map 已导出 · ${fileNames[0]}`;
-      this.isSuccessful = true;
+      this.statusMessage = failedCount > 0
+        ? `Source Map 已导出 · ${successfulResults.length} 个成功 · ${failedCount} 个失败`
+        : successfulResults.length > 1
+          ? `Source Map 已批量导出 · ${successfulResults.length} 个入口`
+          : `Source Map 已导出 · ${fileNames[0]}`;
+      this.isSuccessful = failedCount === 0;
     } catch (error) {
       this.showActionError('导出 Source Map 失败', error);
     }
@@ -1131,19 +1582,19 @@ struct Index {
       nodePackageImporter: true,
       packageEntryPointDirectory: '',
       style: this.outputStyle,
-      alertAscii: false,
-      alertColor: false,
+      alertAscii: this.alertAsciiEnabled,
+      alertColor: this.alertColorEnabled,
       sourceMap,
-      sourceMapIncludeSources: true,
-      charset: true,
-      quiet: false,
-      quietDeps: false,
-      verbose: false,
-      errorCss: true,
-      stopOnError: false,
-      fatalDeprecations: [],
-      futureDeprecations: [],
-      silenceDeprecations: []
+      sourceMapIncludeSources: this.sourceMapIncludeSources,
+      charset: this.charsetEnabled,
+      quiet: this.quietEnabled,
+      quietDeps: this.quietDepsEnabled,
+      verbose: this.verboseEnabled,
+      errorCss: this.errorCssEnabled,
+      stopOnError: this.stopOnError,
+      fatalDeprecations: this.parseOptionList(this.fatalDeprecationsText),
+      futureDeprecations: this.parseOptionList(this.futureDeprecationsText),
+      silenceDeprecations: this.parseOptionList(this.silenceDeprecationsText)
     };
     const script: string =
       DartSassRuntime.createAsyncBatchCompileScript(request);
@@ -1152,12 +1603,13 @@ struct Index {
   }
 
   private async finalizeExports(
-    entries: SassExportFinalizeEntry[]
+    entries: SassExportFinalizeEntry[],
+    embedSourceMap: boolean = this.embedSourceMap
   ): Promise<SassExportFinalizeResponse> {
     const request: SassExportFinalizeRequest = {
       style: this.outputStyle,
-      sourceMapUrls: 'relative',
-      embedSourceMap: false,
+      sourceMapUrls: this.sourceMapUrls,
+      embedSourceMap,
       entries
     };
     const script: string =
@@ -1269,6 +1721,7 @@ struct Index {
     this.diagnosticCount = 0;
     this.dirtyPaths.clear();
     this.fileSignatures.clear();
+    this.projectDirectoryUris = [];
     this.statusMessage = '已载入示例。';
     this.isSuccessful = true;
     this.scheduleSessionSave();
@@ -1296,7 +1749,11 @@ struct Index {
       return true;
     }
     if (event.keyCode === KeyCode.KEYCODE_ENTER) {
-      this.compile();
+      if (event.getModifierKeyState(['shift'])) {
+        this.compileBatch();
+      } else {
+        this.compile();
+      }
       return true;
     }
     return false;
@@ -1328,6 +1785,7 @@ struct Index {
             .width(190).height(34)
           Button('保存').onClick((): void => { this.saveSource(); }).height(34)
           Button('另存为').onClick((): void => { this.saveSource(true); }).height(34)
+          Button('批量编译').onClick((): void => { this.compileBatch(); }).height(34)
           Blank().layoutWeight(1)
           Button('复制 CSS').onClick((): void => { this.copyCss(); }).height(34)
           Button('导出 CSS').onClick((): void => { this.exportCss(); }).height(34)
@@ -1381,10 +1839,141 @@ struct Index {
               }
               this.scheduleSessionSave();
             })
+          Button(this.advancedOptionsVisible ? '收起高级' : '高级选项')
+            .onClick((): void => {
+              this.advancedOptionsVisible = !this.advancedOptionsVisible;
+            })
+            .height(32)
           Blank().layoutWeight(1)
-          Text(`${this.files.length} 个文件`).fontSize(13).fontColor('#667085')
+          Text(`${this.files.length} 个文件 · ${
+            SassProject.entryPaths(this.files, this.activePath).length
+          } 个入口`).fontSize(13).fontColor('#667085')
         }
         .width('100%').padding({ left: 28, right: 28, bottom: 10 })
+
+        if (this.advancedOptionsVisible) {
+          Column({ space: 8 }) {
+            Row({ space: 10 }) {
+              Text('包含源文件').fontSize(12).fontColor('#667085')
+              Toggle({
+                type: ToggleType.Switch,
+                isOn: this.sourceMapIncludeSources
+              }).onChange((isOn: boolean): void => {
+                this.sourceMapIncludeSources = isOn;
+                this.scheduleSessionSave();
+                this.scheduleCompile();
+              })
+              Text('嵌入 Map').fontSize(12).fontColor('#667085')
+              Toggle({ type: ToggleType.Switch, isOn: this.embedSourceMap })
+                .onChange((isOn: boolean): void => {
+                  this.embedSourceMap = isOn;
+                  this.scheduleSessionSave();
+                })
+              Text('Map 地址').fontSize(12).fontColor('#667085')
+              Select([{ value: '相对' }, { value: '绝对' }])
+                .selected(this.sourceMapUrls === 'absolute' ? 1 : 0)
+                .onSelect((index: number): void => {
+                  this.sourceMapUrls = index === 1 ? 'absolute' : 'relative';
+                  this.scheduleSessionSave();
+                })
+                .width(88).height(30)
+              Text('字符集标记').fontSize(12).fontColor('#667085')
+              Toggle({ type: ToggleType.Switch, isOn: this.charsetEnabled })
+                .onChange((isOn: boolean): void => {
+                  this.charsetEnabled = isOn;
+                  this.scheduleSessionSave();
+                  this.scheduleCompile();
+                })
+              Text('批量监视').fontSize(12).fontColor('#667085')
+              Toggle({ type: ToggleType.Switch, isOn: this.autoBatchCompile })
+                .onChange((isOn: boolean): void => {
+                  this.autoBatchCompile = isOn;
+                  this.scheduleSessionSave();
+                  this.scheduleCompile();
+                })
+              Text('遇错停止').fontSize(12).fontColor('#667085')
+              Toggle({ type: ToggleType.Switch, isOn: this.stopOnError })
+                .onChange((isOn: boolean): void => {
+                  this.stopOnError = isOn;
+                  this.scheduleSessionSave();
+                })
+            }.width('100%')
+
+            Row({ space: 10 }) {
+              Text('ASCII 诊断').fontSize(12).fontColor('#667085')
+              Toggle({ type: ToggleType.Switch, isOn: this.alertAsciiEnabled })
+                .onChange((isOn: boolean): void => {
+                  this.alertAsciiEnabled = isOn;
+                  this.scheduleSessionSave();
+                  this.scheduleCompile();
+                })
+              Text('彩色诊断').fontSize(12).fontColor('#667085')
+              Toggle({ type: ToggleType.Switch, isOn: this.alertColorEnabled })
+                .onChange((isOn: boolean): void => {
+                  this.alertColorEnabled = isOn;
+                  this.scheduleSessionSave();
+                  this.scheduleCompile();
+                })
+              Text('静默').fontSize(12).fontColor('#667085')
+              Toggle({ type: ToggleType.Switch, isOn: this.quietEnabled })
+                .onChange((isOn: boolean): void => {
+                  this.quietEnabled = isOn;
+                  this.scheduleSessionSave();
+                  this.scheduleCompile();
+                })
+              Text('静默依赖').fontSize(12).fontColor('#667085')
+              Toggle({ type: ToggleType.Switch, isOn: this.quietDepsEnabled })
+                .onChange((isOn: boolean): void => {
+                  this.quietDepsEnabled = isOn;
+                  this.scheduleSessionSave();
+                  this.scheduleCompile();
+                })
+              Text('详细警告').fontSize(12).fontColor('#667085')
+              Toggle({ type: ToggleType.Switch, isOn: this.verboseEnabled })
+                .onChange((isOn: boolean): void => {
+                  this.verboseEnabled = isOn;
+                  this.scheduleSessionSave();
+                  this.scheduleCompile();
+                })
+              Text('Error CSS').fontSize(12).fontColor('#667085')
+              Toggle({ type: ToggleType.Switch, isOn: this.errorCssEnabled })
+                .onChange((isOn: boolean): void => {
+                  this.errorCssEnabled = isOn;
+                  this.scheduleSessionSave();
+                  this.scheduleCompile();
+                })
+            }.width('100%')
+
+            Row({ space: 10 }) {
+              TextInput({
+                text: this.fatalDeprecationsText,
+                placeholder: '致命弃用：ID 或版本，逗号分隔'
+              }).onChange((value: string): void => {
+                this.fatalDeprecationsText = value;
+                this.scheduleSessionSave();
+                this.scheduleCompile();
+              }).layoutWeight(1).height(30).fontSize(12)
+              TextInput({
+                text: this.futureDeprecationsText,
+                placeholder: '未来弃用：ID，逗号分隔'
+              }).onChange((value: string): void => {
+                this.futureDeprecationsText = value;
+                this.scheduleSessionSave();
+                this.scheduleCompile();
+              }).layoutWeight(1).height(30).fontSize(12)
+              TextInput({
+                text: this.silenceDeprecationsText,
+                placeholder: '忽略弃用：ID，逗号分隔'
+              }).onChange((value: string): void => {
+                this.silenceDeprecationsText = value;
+                this.scheduleSessionSave();
+                this.scheduleCompile();
+              }).layoutWeight(1).height(30).fontSize(12)
+            }.width('100%')
+          }
+          .width('100%')
+          .padding({ left: 28, right: 28, bottom: 10 })
+        }
 
         Text(this.statusMessage).width('100%').padding({ left: 28, right: 28, bottom: 12 })
           .fontSize(13).fontColor(this.isSuccessful ? '#16803C' : '#B42318')

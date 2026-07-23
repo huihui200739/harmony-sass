@@ -50,8 +50,9 @@ than a rewritten or reduced compiler.
 - CSS copy and export, paired CSS/Source Map export, plus standalone Source Map
   export
 - Manual or debounced automatic compilation
-- Automatic reload and recompilation when authorized source files change
-  outside the app, with conflict protection for unsaved edits
+- Automatic discovery, reload and recompilation when authorized project files
+  are added, changed or removed outside the app, with conflict protection for
+  unsaved edits
 - Save-all behavior for modified files in a loaded project
 - Structured errors, warnings, complete deprecation metadata, full source-span
   context, warning and error Sass stacks, JavaScript runtime stack traces and
@@ -62,10 +63,12 @@ than a rewritten or reduced compiler.
   deprecation option values without application-side correction
 - Official `quietDeps` classification for relative files, virtual load paths
   and package dependencies
-- Runtime batch compilation for multiple project entry stylesheets
+- Runtime batch compilation for multiple project entry stylesheets, including
+  partial-success results and optional stop-on-error behavior
 - Session restoration for authorized project files, active file, per-file
   syntax and compiler options
-- PC shortcuts: `Ctrl+O`, `Ctrl+S`, `Ctrl+Shift+S` and `Ctrl+Enter`
+- PC shortcuts: `Ctrl+O`, `Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+Enter` and
+  `Ctrl+Shift+Enter` for batch compilation
 - No network service and no remote compilation
 
 ## Project workflow

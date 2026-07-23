@@ -222,8 +222,13 @@ export class SassProject {
     const entries: string[] = [];
     for (const file of files) {
       const normalized: string = SassProject.normalizePath(file.path);
+      const segments: string[] = normalized.split('/');
       const name: string = normalized.split('/').pop() ?? normalized;
+      const lowerName: string = name.toLowerCase();
       if (name.startsWith('_') ||
+        lowerName.endsWith('.import.scss') ||
+        lowerName.endsWith('.import.sass') ||
+        segments.includes('node_modules') ||
         !SassProject.isStylesheetPath(normalized)) {
         continue;
       }

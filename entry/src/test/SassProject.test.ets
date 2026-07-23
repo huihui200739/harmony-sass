@@ -106,22 +106,41 @@ export default function sassProjectTest() {
           uri: 'file://node_modules/theme/package.json',
           contents: '{"sass":"index.scss"}',
           syntax: 'json'
+        },
+        {
+          path: 'src/legacy.import.scss',
+          uri: 'file://src/legacy.import.scss',
+          contents: '',
+          syntax: 'scss'
+        },
+        {
+          path: 'src/theme.import.module.scss',
+          uri: 'file://src/theme.import.module.scss',
+          contents: '',
+          syntax: 'scss'
+        },
+        {
+          path: 'node_modules/theme/index.scss',
+          uri: 'file://node_modules/theme/index.scss',
+          contents: '',
+          syntax: 'scss'
         }
       ];
       const entries: string[] = SassProject.entryPaths(files);
-      expect(entries.length).assertEqual(2);
+      expect(entries.length).assertEqual(3);
       expect(entries[0]).assertEqual('src/app.scss');
       expect(entries[1]).assertEqual('admin/app.scss');
+      expect(entries[2]).assertEqual('src/theme.import.module.scss');
       const names: string[] = SassProject.outputFileNames(entries, '.css');
       expect(names[0]).assertEqual('src-app.css');
       expect(names[1]).assertEqual('admin-app.css');
       const editableFiles: SassEditorFile[] =
         SassProject.editableStylesheetFiles(files);
-      expect(editableFiles.length).assertEqual(3);
+      expect(editableFiles.length).assertEqual(6);
       expect(editableFiles[0].path).assertEqual('src/app.scss');
       expect(editableFiles[2].path).assertEqual('admin/app.scss');
       const compilerFiles = SassProject.compilerFiles(files, 'src/app.scss');
-      expect(compilerFiles.length).assertEqual(3);
+      expect(compilerFiles.length).assertEqual(6);
       expect(compilerFiles[2].path).assertEqual(
         'node_modules/theme/package.json'
       );
