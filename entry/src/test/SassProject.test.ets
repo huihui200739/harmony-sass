@@ -14,6 +14,9 @@ export default function sassProjectTest() {
       expect(SassProject.isPackageManifestPath('config.json')).assertFalse();
       expect(SassProject.isProjectFilePath('node_modules/theme/package.json')).assertTrue();
       expect(SassProject.isProjectFilePath('config.json')).assertFalse();
+      expect(SassProject.isProjectFilePath('._main.scss')).assertFalse();
+      expect(SassProject.isProjectFilePath('styles/.__tokens.scss')).assertFalse();
+      expect(SassProject.isProjectFilePath('__MACOSX/styles/main.scss')).assertFalse();
     });
 
     it('derives relative virtual paths from selected URIs', 0, (): void => {

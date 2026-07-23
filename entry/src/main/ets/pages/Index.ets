@@ -1,6 +1,7 @@
 import { pasteboard } from '@kit.BasicServicesKit';
 import { fileIo, picker } from '@kit.CoreFileKit';
 import { preferences } from '@kit.ArkData';
+import { uri } from '@kit.ArkTS';
 import { KeyCode } from '@kit.InputKit';
 import { webview } from '@kit.ArkWeb';
 import {
@@ -867,8 +868,9 @@ struct Index {
         continue;
       }
       let relativePaths: string[] = [];
+      const directoryPath: string = this.documentDirectoryPath(uri);
       try {
-        relativePaths = await fileIo.listFile(uri, {
+        relativePaths = await fileIo.listFile(directoryPath, {
           recursion: true,
           listNum: MAX_PROJECT_FILES + 1,
           filter: {
@@ -882,12 +884,12 @@ struct Index {
       }
       relativePaths.sort();
       for (const relativePath of relativePaths) {
-        const normalized: string = SassProject.normalizePath(relativePath);
+        const normalized: string = this.relativeListedPath(directoryPath, relativePath);
         if (SassProject.isProjectFilePath(normalized)) {
-          const childUri: string = this.joinDocumentUri(uri, normalized);
-          if (!seen.has(childUri)) {
-            seen.add(childUri);
-            expanded.push(childUri);
+          const childPath: string = `${directoryPath}/${normalized}`;
+          if (!seen.has(childPath)) {
+            seen.add(childPath);
+            expanded.push(childPath);
           }
           if (expanded.length > MAX_PROJECT_FILES) {
             throw new Error(`一次最多载入 ${MAX_PROJECT_FILES} 个项目文件。`);
@@ -898,20 +900,33 @@ struct Index {
     return expanded;
   }
 
-  private joinDocumentUri(directoryUri: string, relativePath: string): string {
-    const root: string = directoryUri.endsWith('/')
-      ? directoryUri.slice(0, directoryUri.length - 1)
-      : directoryUri;
-    const encodedSegments: string[] = [];
-    for (const segment of SassProject.normalizePath(relativePath).split('/')) {
-      let decoded: string = segment;
-      try {
-        decoded = decodeURIComponent(segment);
-      } catch (_) {
-      }
-      encodedSegments.push(encodeURIComponent(decoded));
+  private documentDirectoryPath(directoryUri: string): string {
+    if (!directoryUri.startsWith('file://')) {
+      return directoryUri;
     }
-    return `${root}/${encodedSegments.join('/')}`;
+    const parsed: uri.URI = new uri.URI(directoryUri);
+    const decodedSegments: string[] = [];
+    for (const segment of parsed.path.split('/')) {
+      if (segment.length === 0) {
+        continue;
+      }
+      try {
+        decodedSegments.push(decodeURIComponent(segment));
+      } catch (_) {
+        decodedSegments.push(segment);
+      }
+    }
+    return `/${decodedSegments.join('/')}`;
+  }
+
+  private relativeListedPath(directoryPath: string, listedPath: string): string {
+    const normalizedDirectory: string = SassProject.normalizePath(directoryPath);
+    const normalizedListed: string = SassProject.normalizePath(listedPath);
+    const directoryPrefix: string = `${normalizedDirectory}/`;
+    if (normalizedListed.startsWith(directoryPrefix)) {
+      return normalizedListed.slice(directoryPrefix.length);
+    }
+    return normalizedListed;
   }
 
   private async saveSource(forcePicker: boolean = false): Promise<void> {
@@ -1383,9 +1398,12 @@ struct Index {
               .layoutWeight(1).width('100%').fontSize(15).fontFamily('monospace')
               .backgroundColor('#FFFFFF').border({ width: 1, color: '#D0D5DD', radius: 8 })
               .onChange((value: string): void => {
+                const contentsChanged: boolean = value !== this.activeFile().contents;
                 this.source = value;
                 this.syncActiveSource();
-                this.dirtyPaths.add(this.activePath);
+                if (contentsChanged) {
+                  this.dirtyPaths.add(this.activePath);
+                }
                 this.scheduleCompile();
               })
           }.alignItems(HorizontalAlign.Start).layoutWeight(1).height('100%')

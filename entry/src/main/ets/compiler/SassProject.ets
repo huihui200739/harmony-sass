@@ -52,6 +52,13 @@ export class SassProject {
   }
 
   static isProjectFilePath(path: string): boolean {
+    const normalized: string = SassProject.normalizePath(path);
+    const segments: string[] = normalized.split('/');
+    if (segments.some((segment: string): boolean =>
+      segment.startsWith('._') || segment === '__MACOSX'
+    )) {
+      return false;
+    }
     return SassProject.isStylesheetPath(path) ||
       SassProject.isPackageManifestPath(path);
   }
