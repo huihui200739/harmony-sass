@@ -816,9 +816,9 @@ struct Index {
         chunks.push(`===== ${entry.entryPath} =====\n${entry.css ?? ''}`);
       } else {
         failedCount++;
-        const errorText: string = entry.error?.formatted ??
-          entry.error?.message ??
-          'Dart Sass 未返回错误详情。';
+        const errorText: string = entry.error?.formatted !== undefined
+          ? this.stripAnsi(entry.error.formatted)
+          : entry.error?.message ?? 'Dart Sass 未返回错误详情。';
         const errorCss: string = entry.errorCss !== undefined && this.errorCssEnabled
           ? `\n\n----- Error CSS -----\n${entry.errorCss}`
           : '';
@@ -883,9 +883,10 @@ struct Index {
       return;
     }
     const diagnostics: string = this.formatDiagnostics(warnings, debugMessages);
+    const formattedError: string = this.stripAnsi(error.formatted);
     this.displayResult = diagnostics.length > 0
-      ? `${error.formatted}\n\n----- Sass 诊断 -----\n${diagnostics}`
-      : error.formatted;
+      ? `${formattedError}\n\n----- Sass 诊断 -----\n${diagnostics}`
+      : formattedError;
     const location: string = error.line > 0
       ? `（第 ${error.line} 行，第 ${error.column} 列）`
       : '';
@@ -923,6 +924,10 @@ struct Index {
       messages.push(message);
     }
     return messages.join('\n\n');
+  }
+
+  private stripAnsi(value: string): string {
+    return value.replace(/\u001B\[[0-?]*[ -/]*[@-~]/g, '');
   }
 
   private formatDiagnosticLocation(span: SassSourceSpan | undefined): string {
@@ -1848,6 +1853,9 @@ struct Index {
         : `CSS 已同步 · ${successfulCount} 个入口`;
       this.isSuccessful = failedCount === 0;
     } catch (error) {
+      if ((error as Error).message === '未选择 CSS 输出目录。') {
+        return;
+      }
       this.showActionError('导出 CSS 失败', error);
     }
   }
@@ -1855,7 +1863,6 @@ struct Index {
   private async exportSourceMap(): Promise<void> {
     if (!this.sourceMapEnabled) {
       this.statusMessage = '请先启用 Source Map。';
-      this.isSuccessful = false;
       return;
     }
     try {
@@ -1877,6 +1884,9 @@ struct Index {
         : `CSS 与 Source Map 已同步 · ${successfulCount} 个入口`;
       this.isSuccessful = failedCount === 0;
     } catch (error) {
+      if ((error as Error).message === '未选择 CSS 输出目录。') {
+        return;
+      }
       this.showActionError('导出 Source Map 失败', error);
     }
   }
@@ -1946,9 +1956,9 @@ struct Index {
       if (entry.ok) {
         continue;
       }
-      const errorText: string = entry.error?.formatted ??
-        entry.error?.message ??
-        'Dart Sass 未返回错误详情。';
+      const errorText: string = entry.error?.formatted !== undefined
+        ? this.stripAnsi(entry.error.formatted)
+        : entry.error?.message ?? 'Dart Sass 未返回错误详情。';
       const diagnostics: string = this.formatDiagnostics(
         entry.warnings ?? [],
         entry.debugMessages ?? []
