@@ -1,5 +1,5 @@
 import { pasteboard } from '@kit.BasicServicesKit';
-import { fileIo, picker } from '@kit.CoreFileKit';
+import { fileIo, fileUri, picker } from '@kit.CoreFileKit';
 import { preferences } from '@kit.ArkData';
 import { uri } from '@kit.ArkTS';
 import { KeyCode } from '@kit.InputKit';
@@ -1693,31 +1693,119 @@ struct Index {
     return path.startsWith('/') ? `file://${encoded}` : `file:///${encoded}`;
   }
 
-  private async ensureOutputDirectory(): Promise<void> {
-    if (this.outputDirectoryPath.length > 0) {
-      return;
+  private async resolveDirectoryPath(uriOrPath: string): Promise<string> {
+    if (uriOrPath.length === 0) {
+      return '';
     }
+    let directory: fileIo.File | undefined = undefined;
+    let resolvedPath: string = '';
+    try {
+      directory = await fileIo.open(
+        uriOrPath,
+        fileIo.OpenMode.READ_ONLY | fileIo.OpenMode.DIR
+      );
+      resolvedPath = directory.path;
+    } catch (_) {
+    } finally {
+      if (directory !== undefined) {
+        await fileIo.close(directory).catch((): void => {});
+      }
+    }
+    if (resolvedPath.startsWith('/') && !resolvedPath.startsWith('file:')) {
+      return resolvedPath;
+    }
+    try {
+      const resolvedUri: fileUri.FileUri = new fileUri.FileUri(uriOrPath);
+      if (resolvedUri.path.startsWith('/') && !resolvedUri.path.startsWith('file:')) {
+        return resolvedUri.path;
+      }
+    } catch (_) {
+    }
+    return '';
+  }
+
+  private async isUsableDirectory(path: string): Promise<boolean> {
+    let directory: fileIo.File | undefined = undefined;
+    try {
+      directory = await fileIo.open(
+        path,
+        fileIo.OpenMode.READ_ONLY | fileIo.OpenMode.DIR
+      );
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      if (directory !== undefined) {
+        await fileIo.close(directory).catch((): void => {});
+      }
+    }
+  }
+
+  private async chooseOutputDirectory(): Promise<string> {
     const context = this.getUIContext().getHostContext();
     if (context === undefined) {
       throw new Error('无法获取当前窗口上下文。');
     }
     const documentPicker: picker.DocumentViewPicker =
       new picker.DocumentViewPicker(context);
-    const options: picker.DocumentSaveOptions =
+    const folderSelectionSupported: boolean = canIUse(
+      'SystemCapability.FileManagement.UserFileService.FolderSelection'
+    );
+    if (folderSelectionSupported) {
+      const selectOptions: picker.DocumentSelectOptions =
+        new picker.DocumentSelectOptions();
+      selectOptions.maxSelectNumber = 1;
+      selectOptions.selectMode = picker.DocumentSelectMode.FOLDER;
+      const selectedUris: string[] = await documentPicker.select(selectOptions);
+      if (selectedUris.length === 0) {
+        throw new Error('未选择 CSS 输出目录。');
+      }
+      const resolvedPath: string = await this.resolveDirectoryPath(selectedUris[0]);
+      if (resolvedPath.length === 0) {
+        throw new Error('无法确定 CSS 输出目录。');
+      }
+      return resolvedPath;
+    }
+
+    const saveOptions: picker.DocumentSaveOptions =
       new picker.DocumentSaveOptions();
-    options.newFileNames = ['harmony-sass-output.css'];
-    options.fileSuffixChoices = ['CSS|.css'];
-    options.autoCreateEmptyFile = false;
-    const uris: string[] = await documentPicker.save(options);
-    if (uris.length === 0) {
+    saveOptions.newFileNames = ['harmony-sass-output.css'];
+    saveOptions.fileSuffixChoices = ['CSS|.css'];
+    saveOptions.autoCreateEmptyFile = true;
+    const savedUris: string[] = await documentPicker.save(saveOptions);
+    if (savedUris.length === 0) {
       throw new Error('未选择 CSS 输出目录。');
     }
-    this.outputDirectoryPath =
-      this.documentParentPath(this.documentDirectoryPath(uris[0]));
+    let parentUri: string = '';
+    try {
+      parentUri = new fileUri.FileUri(savedUris[0]).getFullDirectoryUri();
+    } catch (_) {
+      parentUri = this.documentParentPath(savedUris[0]);
+    }
+    const resolvedPath: string = await this.resolveDirectoryPath(parentUri);
+    try {
+      await this.deleteGeneratedPath(savedUris[0]);
+    } catch (_) {
+    }
+    if (resolvedPath.length === 0) {
+      throw new Error('无法确定 CSS 输出目录。');
+    }
+    return resolvedPath;
+  }
+
+  private async ensureOutputDirectory(): Promise<void> {
+    if (this.outputDirectoryPath.length > 0) {
+      if (await this.isUsableDirectory(this.outputDirectoryPath)) {
+        return;
+      }
+      this.outputDirectoryPath = '';
+      this.generatedOutputs.clear();
+      this.scheduleSessionSave();
+    }
+    this.outputDirectoryPath = await this.chooseOutputDirectory();
     if (this.outputDirectoryPath.length === 0) {
       throw new Error('无法确定 CSS 输出目录。');
     }
-    await fileIo.mkdir(this.outputDirectoryPath, true);
     this.scheduleSessionSave();
   }
 
